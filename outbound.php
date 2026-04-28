@@ -2,28 +2,49 @@
 require 'config.php';
 require_access(['Admin', 'Staff Gudang']);
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'qc_process') {
-    $id_so = $_POST['id_so']; $id_f = $_POST['id_f']; $qty = (int)$_POST['qty']; $kep = $_POST['kep']; $ket = $_POST['ket'] ?? '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    $id_so = $_POST['id_so'];
+    $no_so = $_POST['no_so'];
+    
     try {
         $pdo->beginTransaction();
-        $stmt = $pdo->prepare("SELECT stok_tersedia FROM tb_furniture WHERE id_furniture = ?");
-        $stmt->execute([$id_f]); $stok = $stmt->fetchColumn();
-        if ($stok < $qty) throw new Exception("Stok tidak cukup!");
-        if ($kep === 'lolos') {
+        if ($_POST['action'] === 'picking') {
+            $stmt = $pdo->prepare("UPDATE tb_sales_order SET status = 'Picking' WHERE id_so = ?");
+            $stmt->execute([$id_so]);
+            $success = "SO #$no_so: Mulai proses Picking!";
+        } elseif ($_POST['action'] === 'qc_process') {
+            $id_f = $_POST['id_f']; $qty = (int)$_POST['qty']; $kep = $_POST['kep']; $ket = $_POST['ket'] ?? '';
+            $stmt = $pdo->prepare("SELECT stok_tersedia FROM tb_furniture WHERE id_furniture = ?");
+            $stmt->execute([$id_f]); $stok = $stmt->fetchColumn();
+            if ($stok < $qty) throw new Exception("Stok tidak cukup!");
+            
+            if ($kep === 'lolos') {
+                $stmt = $pdo->prepare("UPDATE tb_sales_order SET status = 'QC_Passed' WHERE id_so = ?");
+                $stmt->execute([$id_so]);
+                $success = "SO #$no_so: Lolos QC!";
+            } else {
+                $stmt = $pdo->prepare("UPDATE tb_furniture SET stok_tersedia = stok_tersedia - ?, stok_karantina = stok_karantina + ? WHERE id_furniture = ?"); $stmt->execute([$qty, $qty, $id_f]);
+                $stmt = $pdo->prepare("INSERT INTO tb_mutasi_stok (id_furniture, tgl_mutasi, jenis_mutasi, qty, keterangan) VALUES (?, datetime('now'), 'MUTASI_RUSAK', ?, ?)"); $stmt->execute([$id_f, -$qty, "RUSAK (Gagal QC) SO: ".$no_so." - ".$ket]);
+                $stmt = $pdo->prepare("UPDATE tb_sales_order SET status = 'Pending' WHERE id_so = ?");
+                $stmt->execute([$id_so]);
+                $error = "SO #$no_so: Gagal QC, barang masuk karantina. SO kembali ke antrean Picking.";
+            }
+        } elseif ($_POST['action'] === 'packing') {
+            $stmt = $pdo->prepare("UPDATE tb_sales_order SET status = 'Packing' WHERE id_so = ?");
+            $stmt->execute([$id_so]);
+            $success = "SO #$no_so: Selesai Packing!";
+        } elseif ($_POST['action'] === 'shipped') {
+            $id_f = $_POST['id_f']; $qty = (int)$_POST['qty'];
             $stmt = $pdo->prepare("UPDATE tb_furniture SET stok_tersedia = stok_tersedia - ? WHERE id_furniture = ?"); $stmt->execute([$qty, $id_f]);
             $stmt = $pdo->prepare("UPDATE tb_sales_order SET status = 'Shipped' WHERE id_so = ?"); $stmt->execute([$id_so]);
-            $stmt = $pdo->prepare("INSERT INTO tb_mutasi_stok (id_furniture, tgl_mutasi, jenis_mutasi, qty, keterangan) VALUES (?, datetime('now'), 'OUT', ?, ?)"); $stmt->execute([$id_f, -$qty, "OUT (Lolos QC) SO: ".$_POST['no_so']]);
-            $success = "QC LOLOS: Barang dikirim!";
-        } else {
-            $stmt = $pdo->prepare("UPDATE tb_furniture SET stok_tersedia = stok_tersedia - ?, stok_karantina = stok_karantina + ? WHERE id_furniture = ?"); $stmt->execute([$qty, $qty, $id_f]);
-            $stmt = $pdo->prepare("INSERT INTO tb_mutasi_stok (id_furniture, tgl_mutasi, jenis_mutasi, qty, keterangan) VALUES (?, datetime('now'), 'MUTASI_RUSAK', ?, ?)"); $stmt->execute([$id_f, -$qty, "RUSAK (Gagal QC) SO: ".$_POST['no_so']." - ".$ket]);
-            $error = "QC GAGAL: Barang masuk karantina.";
+            $stmt = $pdo->prepare("INSERT INTO tb_mutasi_stok (id_furniture, tgl_mutasi, jenis_mutasi, qty, keterangan) VALUES (?, datetime('now'), 'OUT', ?, ?)"); $stmt->execute([$id_f, -$qty, "Kirim SO: ".$no_so]);
+            $success = "SO #$no_so: Berhasil dikirim! Stok gudang telah dipotong.";
         }
         $pdo->commit();
     } catch (Exception $e) { $pdo->rollBack(); $error = $e->getMessage(); }
 }
 
-$stmt = $pdo->query("SELECT s.*, d.qty_diminta, f.id_furniture, f.nama_barang, f.kode_barang, f.stok_tersedia FROM tb_sales_order s JOIN tb_detail_so d ON s.id_so = d.id_so JOIN tb_furniture f ON d.id_furniture = f.id_furniture WHERE s.status = 'Pending' ORDER BY s.id_so ASC");
+$stmt = $pdo->query("SELECT s.*, t.nama_toko, d.qty_diminta, f.id_furniture, f.nama_barang, f.kode_barang, f.stok_tersedia, l.nama_blok, l.rak FROM tb_sales_order s JOIN tb_detail_so d ON s.id_so = d.id_so JOIN tb_furniture f ON d.id_furniture = f.id_furniture JOIN tb_toko t ON s.id_toko = t.id_toko LEFT JOIN tb_lokasi l ON f.id_lokasi = l.id_lokasi WHERE s.status != 'Shipped' ORDER BY s.id_so ASC");
 $sos = $stmt->fetchAll();
 
 include 'includes/header.php';
@@ -43,30 +64,59 @@ include 'includes/sidebar.php';
         <div class="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-2xl mb-8 font-bold text-sm"><?= $error ?></div>
     <?php endif; ?>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <?php if(empty($sos)): ?>
-            <div class="col-span-full py-20 text-center text-slate-400 font-bold uppercase tracking-widest bg-white rounded-[2rem] border border-dashed border-slate-200">Antrean QC Kosong</div>
-        <?php else: foreach($sos as $s): ?>
+    <div class="flex gap-2 mb-10 bg-slate-200 p-2 rounded-2xl w-fit">
+        <button id="btn-pending" onclick="st('Pending')" class="px-6 py-3 rounded-xl font-black text-sm transition-all bg-navy-900 text-white shadow-lg relative">1. Picking List <span class="absolute -top-2 -right-2 bg-amber-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full"><?= count(array_filter($sos, fn($x) => $x['status'] == 'Pending')) ?></span></button>
+        <button id="btn-picking" onclick="st('Picking')" class="px-6 py-3 rounded-xl font-black text-sm transition-all text-slate-600 hover:bg-white/50 relative">2. Proses QC <span class="absolute -top-2 -right-2 bg-blue-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full"><?= count(array_filter($sos, fn($x) => $x['status'] == 'Picking')) ?></span></button>
+        <button id="btn-qc_passed" onclick="st('QC_Passed')" class="px-6 py-3 rounded-xl font-black text-sm transition-all text-slate-600 hover:bg-white/50 relative">3. Packing <span class="absolute -top-2 -right-2 bg-purple-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full"><?= count(array_filter($sos, fn($x) => $x['status'] == 'QC_Passed')) ?></span></button>
+        <button id="btn-packing" onclick="st('Packing')" class="px-6 py-3 rounded-xl font-black text-sm transition-all text-slate-600 hover:bg-white/50 relative">4. Siap Kirim <span class="absolute -top-2 -right-2 bg-green-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full"><?= count(array_filter($sos, fn($x) => $x['status'] == 'Packing')) ?></span></button>
+    </div>
+
+    <?php foreach(['Pending', 'Picking', 'QC_Passed', 'Packing'] as $status): ?>
+    <div id="tab-<?= $status ?>" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in <?= $status !== 'Pending' ? 'hidden' : '' ?>">
+        <?php $filtered = array_filter($sos, fn($x) => $x['status'] == $status); if(empty($filtered)): ?>
+            <div class="col-span-full py-20 text-center text-slate-400 font-bold uppercase tracking-widest bg-white rounded-[2rem] border border-dashed border-slate-200">Antrean <?= $status ?> Kosong</div>
+        <?php else: foreach($filtered as $s): ?>
         <div class="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100 card-hover flex flex-col">
             <div class="flex justify-between items-start mb-6">
                 <span class="bg-navy-900 text-white px-4 py-1 rounded-full text-[10px] font-black tracking-widest"><?= $s['no_so'] ?></span>
                 <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest"><?= date('d M Y', strtotime($s['tanggal_request'])) ?></span>
             </div>
-            <h4 class="text-lg font-black text-navy-900 mb-1"><?= htmlspecialchars($s['nama_toko_peminta']) ?></h4>
+            <h4 class="text-lg font-black text-navy-900 mb-1"><?= htmlspecialchars($s['nama_toko']) ?></h4>
             <p class="text-xs text-slate-500 mb-6 font-medium">Request: <span class="font-bold text-navy-900"><?= $s['qty_diminta'] ?> Unit</span></p>
             
-            <div class="bg-slate-50 rounded-2xl p-4 mb-6 flex items-center gap-4">
-                <div class="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white font-black text-xs"><?= substr($s['kode_barang'],0,2) ?></div>
-                <div class="flex-1 overflow-hidden">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none"><?= $s['kode_barang'] ?></p>
-                    <p class="text-xs font-bold text-navy-900 truncate"><?= $s['nama_barang'] ?></p>
+            <div class="bg-slate-50 rounded-2xl p-4 mb-6 flex flex-col gap-2">
+                <div class="flex items-center gap-4">
+                    <div class="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white font-black text-xs"><?= substr($s['kode_barang'],0,2) ?></div>
+                    <div class="flex-1 overflow-hidden">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none"><?= $s['kode_barang'] ?></p>
+                        <p class="text-xs font-bold text-navy-900 truncate"><?= $s['nama_barang'] ?></p>
+                    </div>
                 </div>
+                <div class="mt-2 text-xs font-bold text-blue-600 bg-blue-50 px-3 py-2 rounded-lg">Lokasi: <?= htmlspecialchars($s['nama_blok'] ?? 'N/A') ?> - <?= htmlspecialchars($s['rak'] ?? 'N/A') ?></div>
             </div>
 
-            <button onclick='oqc(<?= json_encode($s) ?>)' class="mt-auto w-full py-4 rounded-2xl bg-navy-900 text-white font-black text-xs shadow-lg shadow-navy-900/10 hover:bg-navy-800 transition-all uppercase tracking-widest">Proses QC Fisik</button>
+            <form method="POST" action="outbound.php" class="mt-auto">
+                <input type="hidden" name="id_so" value="<?= $s['id_so'] ?>">
+                <input type="hidden" name="no_so" value="<?= $s['no_so'] ?>">
+                <input type="hidden" name="id_f" value="<?= $s['id_furniture'] ?>">
+                <input type="hidden" name="qty" value="<?= $s['qty_diminta'] ?>">
+                <?php if($status === 'Pending'): ?>
+                    <input type="hidden" name="action" value="picking">
+                    <button type="submit" class="w-full py-4 rounded-2xl bg-navy-900 text-white font-black text-xs shadow-lg shadow-navy-900/10 hover:bg-navy-800 transition-all uppercase tracking-widest">Mulai Picking</button>
+                <?php elseif($status === 'Picking'): ?>
+                    <button type="button" onclick='oqc(<?= json_encode($s) ?>)' class="w-full py-4 rounded-2xl bg-amber-500 text-white font-black text-xs shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all uppercase tracking-widest">Inspeksi QC</button>
+                <?php elseif($status === 'QC_Passed'): ?>
+                    <input type="hidden" name="action" value="packing">
+                    <button type="submit" class="w-full py-4 rounded-2xl bg-purple-600 text-white font-black text-xs shadow-lg shadow-purple-600/20 hover:bg-purple-700 transition-all uppercase tracking-widest">Selesai Packing</button>
+                <?php elseif($status === 'Packing'): ?>
+                    <input type="hidden" name="action" value="shipped">
+                    <button type="submit" class="w-full py-4 rounded-2xl bg-green-600 text-white font-black text-xs shadow-lg shadow-green-600/20 hover:bg-green-700 transition-all uppercase tracking-widest flex items-center justify-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg> Kirim & Cetak Surat Jalan</button>
+                <?php endif; ?>
+            </form>
         </div>
         <?php endforeach; endif; ?>
     </div>
+    <?php endforeach; ?>
 </div>
 
 <div id="mqc" class="fixed inset-0 bg-navy-900/70 backdrop-blur-md flex items-center justify-center hidden z-50">
@@ -112,6 +162,21 @@ include 'includes/sidebar.php';
 </div>
 
 <script>
+    function st(t){
+        const tabs = ['Pending', 'Picking', 'QC_Passed', 'Packing'];
+        tabs.forEach(tab => {
+            const btn = document.getElementById('btn-'+tab);
+            const content = document.getElementById('tab-'+tab);
+            if(btn) btn.className="px-6 py-3 rounded-xl font-black text-sm transition-all text-slate-600 hover:bg-white/50 relative";
+            if(content) content.classList.add('hidden');
+        });
+        
+        const activeBtn = document.getElementById('btn-'+t);
+        const activeContent = document.getElementById('tab-'+t);
+        if(activeBtn) activeBtn.className="px-6 py-3 rounded-xl font-black text-sm transition-all bg-navy-900 text-white shadow-lg relative";
+        if(activeContent) activeContent.classList.remove('hidden');
+    }
+    
     function oqc(d){ document.getElementById('q_id_so').value=d.id_so; document.getElementById('q_no_so').value=d.no_so; document.getElementById('q_id_f').value=d.id_furniture; document.getElementById('q_qty').value=d.qty_diminta; document.getElementById('lb').innerText=d.nama_barang; document.getElementById('lq').innerText=d.qty_diminta+' Unit'; document.getElementById('mqc').classList.remove('hidden'); }
     function cqc(){ document.getElementById('mqc').classList.add('hidden'); }
     function sqc(k){ if(k==='gagal'&&!document.getElementById('q_ket').value.trim()){ alert('Alasan gagal wajib diisi!'); return; } document.getElementById('q_kep').value=k; document.getElementById('fqc').submit(); }

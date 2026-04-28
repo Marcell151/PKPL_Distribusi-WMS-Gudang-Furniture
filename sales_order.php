@@ -3,12 +3,12 @@ require 'config.php';
 require_access(['Admin', 'Staff Gudang']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $nama_toko = $_POST['nama_toko']; $id_f = $_POST['id_f']; $qty = (int)$_POST['qty'];
+    $id_toko = $_POST['id_toko']; $id_f = $_POST['id_f']; $qty = (int)$_POST['qty'];
     $no_so = "SO-" . date('Ymd') . "-" . rand(1000,9999);
     try {
         $pdo->beginTransaction();
-        $stmt = $pdo->prepare("INSERT INTO tb_sales_order (no_so, nama_toko_peminta, tanggal_request, status) VALUES (?, ?, date('now'), 'Pending')");
-        $stmt->execute([$no_so, $nama_toko]);
+        $stmt = $pdo->prepare("INSERT INTO tb_sales_order (no_so, id_toko, tanggal_request, status) VALUES (?, ?, date('now'), 'Pending')");
+        $stmt->execute([$no_so, $id_toko]);
         $id_so = $pdo->lastInsertId();
         $stmt = $pdo->prepare("INSERT INTO tb_detail_so (id_so, id_furniture, qty_diminta) VALUES (?, ?, ?)");
         $stmt->execute([$id_so, $id_f, $qty]);
@@ -19,7 +19,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $stmt = $pdo->query("SELECT * FROM tb_furniture ORDER BY nama_barang ASC");
 $furns = $stmt->fetchAll();
-$stmt = $pdo->query("SELECT s.*, d.qty_diminta, f.nama_barang, f.kode_barang FROM tb_sales_order s JOIN tb_detail_so d ON s.id_so = d.id_so JOIN tb_furniture f ON d.id_furniture = f.id_furniture ORDER BY s.id_so DESC LIMIT 20");
+$stmt = $pdo->query("SELECT * FROM tb_toko ORDER BY nama_toko ASC");
+$tokos = $stmt->fetchAll();
+$stmt = $pdo->query("SELECT s.*, t.nama_toko, t.kode_toko, d.qty_diminta, f.nama_barang, f.kode_barang FROM tb_sales_order s JOIN tb_detail_so d ON s.id_so = d.id_so JOIN tb_furniture f ON d.id_furniture = f.id_furniture LEFT JOIN tb_toko t ON s.id_toko = t.id_toko ORDER BY s.id_so DESC LIMIT 20");
 $sos = $stmt->fetchAll();
 
 include 'includes/header.php';
@@ -55,14 +57,21 @@ include 'includes/sidebar.php';
                     <?php foreach($sos as $s): ?>
                     <tr class="hover:bg-slate-50/50 transition-colors">
                         <td class="px-8 py-6"><span class="font-black text-navy-900"><?= $s['no_so'] ?></span></td>
-                        <td class="px-8 py-6 font-bold text-slate-600"><?= htmlspecialchars($s['nama_toko_peminta']) ?></td>
+                        <td class="px-8 py-6 font-bold text-slate-600"><?= htmlspecialchars($s['nama_toko'] ?? 'N/A') ?> <span class="text-[10px] bg-slate-100 text-slate-500 px-2 py-1 rounded ml-1"><?= htmlspecialchars($s['kode_toko'] ?? '') ?></span></td>
                         <td class="px-8 py-6">
                             <p class="font-black text-navy-900"><?= htmlspecialchars($s['kode_barang']) ?></p>
                             <p class="text-[10px] text-slate-400"><?= htmlspecialchars($s['nama_barang']) ?></p>
                         </td>
                         <td class="px-8 py-6 text-center font-black text-lg text-amber-600"><?= $s['qty_diminta'] ?></td>
                         <td class="px-8 py-6 text-center">
-                            <span class="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest <?= $s['status'] == 'Pending' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700' ?>"><?= $s['status'] ?></span>
+                            <?php 
+                                $sc = 'bg-slate-100 text-slate-700';
+                                if($s['status'] == 'Pending') $sc = 'bg-amber-100 text-amber-700';
+                                elseif($s['status'] == 'Picking' || $s['status'] == 'Packing') $sc = 'bg-blue-100 text-blue-700';
+                                elseif($s['status'] == 'QC_Passed') $sc = 'bg-purple-100 text-purple-700';
+                                elseif($s['status'] == 'Shipped') $sc = 'bg-green-100 text-green-700';
+                            ?>
+                            <span class="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest <?= $sc ?>"><?= str_replace('_', ' ', $s['status']) ?></span>
                         </td>
                     </tr>
                     <?php endforeach; ?>
@@ -81,7 +90,12 @@ include 'includes/sidebar.php';
         <form method="POST" class="p-10 space-y-6">
             <div>
                 <label class="block text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-widest">Toko Tujuan</label>
-                <input type="text" name="nama_toko" required placeholder="Nama Cabang..." class="w-full bg-slate-50 rounded-2xl p-4 text-sm font-bold text-navy-900 outline-none focus:ring-2 focus:ring-amber-500">
+                <select name="id_toko" required class="w-full bg-slate-50 rounded-2xl p-4 text-sm font-bold text-navy-900 outline-none appearance-none cursor-pointer focus:ring-2 focus:ring-amber-500">
+                    <option value="" disabled selected>-- Pilih Toko Cabang --</option>
+                    <?php foreach($tokos as $t): ?>
+                        <option value="<?= $t['id_toko'] ?>"><?= htmlspecialchars($t['kode_toko']) ?> - <?= htmlspecialchars($t['nama_toko']) ?></option>
+                    <?php endforeach; ?>
+                </select>
             </div>
             <div>
                 <label class="block text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-widest">Furniture</label>

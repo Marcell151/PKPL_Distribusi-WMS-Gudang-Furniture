@@ -4,25 +4,23 @@ require_access(['Admin']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action']) && $_POST['action'] == 'add') {
-        $kode = $_POST['kode_barang'];
-        $nama = $_POST['nama_barang'];
-        $id_lokasi = $_POST['id_lokasi'];
+        $kode = $_POST['kode_supplier'];
+        $nama = $_POST['nama_supplier'];
+        $kontak = $_POST['kontak'];
+        $alamat = $_POST['alamat'];
         
         try {
-            $stmt = $pdo->prepare("INSERT INTO tb_furniture (kode_barang, nama_barang, id_lokasi) VALUES (?, ?, ?)");
-            $stmt->execute([$kode, $nama, $id_lokasi]);
-            $success = "Barang berhasil ditambahkan!";
+            $stmt = $pdo->prepare("INSERT INTO tb_supplier (kode_supplier, nama_supplier, kontak, alamat) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$kode, $nama, $kontak, $alamat]);
+            $success = "Supplier berhasil ditambahkan!";
         } catch (PDOException $e) {
-            $error = "Gagal menambah barang: " . $e->getMessage();
+            $error = "Gagal menambah supplier: " . $e->getMessage();
         }
     }
 }
 
-$stmt = $pdo->query("SELECT f.*, l.nama_blok, l.rak FROM tb_furniture f LEFT JOIN tb_lokasi l ON f.id_lokasi = l.id_lokasi ORDER BY f.id_furniture DESC");
-$furniture = $stmt->fetchAll();
-
-$stmt_lok = $pdo->query("SELECT * FROM tb_lokasi ORDER BY nama_blok ASC");
-$lokasi_list = $stmt_lok->fetchAll();
+$stmt = $pdo->query("SELECT * FROM tb_supplier ORDER BY id_supplier DESC");
+$suppliers = $stmt->fetchAll();
 
 include 'includes/header.php';
 include 'includes/sidebar.php';
@@ -31,12 +29,12 @@ include 'includes/sidebar.php';
 <div class="flex-1 overflow-y-auto p-8 animate-fade-in">
     <header class="flex justify-between items-center mb-10">
         <div>
-            <h2 class="text-3xl font-extrabold text-navy-900 tracking-tight">Master Furniture</h2>
-            <p class="text-slate-500 font-medium mt-1">Manajemen SKU dan lokasi penyimpanan barang jadi.</p>
+            <h2 class="text-3xl font-extrabold text-navy-900 tracking-tight">Master Supplier</h2>
+            <p class="text-slate-500 font-medium mt-1">Manajemen data vendor & supplier barang.</p>
         </div>
         <button onclick="document.getElementById('modalAdd').classList.remove('hidden')" class="bg-navy-900 text-white py-4 px-8 rounded-2xl font-bold text-sm shadow-xl shadow-navy-900/10 hover:bg-navy-800 transition-all flex items-center gap-2">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-            Tambah Furniture
+            Tambah Supplier
         </button>
     </header>
 
@@ -46,37 +44,38 @@ include 'includes/sidebar.php';
             <span class="font-bold text-sm"><?= $success ?></span>
         </div>
     <?php endif; ?>
+    <?php if(isset($error)): ?>
+        <div class="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-2xl mb-8 flex items-center gap-3">
+            <span class="font-bold text-sm"><?= $error ?></span>
+        </div>
+    <?php endif; ?>
 
     <div class="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
                 <thead>
                     <tr class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50">
-                        <th class="px-8 py-6">SKU / Kode</th>
-                        <th class="px-8 py-6">Nama Furniture</th>
-                        <th class="px-8 py-6">Lokasi / Blok</th>
-                        <th class="px-8 py-6 text-center">Ready</th>
-                        <th class="px-8 py-6 text-center">Karantina</th>
+                        <th class="px-8 py-6">Kode</th>
+                        <th class="px-8 py-6">Nama Supplier</th>
+                        <th class="px-8 py-6">Kontak</th>
+                        <th class="px-8 py-6">Alamat</th>
                         <th class="px-8 py-6 text-center">Tindakan</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-50 text-sm">
-                    <?php foreach($furniture as $f): ?>
+                    <?php foreach($suppliers as $s): ?>
                     <tr class="hover:bg-slate-50/50 transition-colors group">
                         <td class="px-8 py-6">
-                            <span class="font-black text-navy-900 group-hover:text-blue-600 transition-colors"><?= htmlspecialchars($f['kode_barang']) ?></span>
+                            <span class="font-black text-navy-900 group-hover:text-blue-600 transition-colors"><?= htmlspecialchars($s['kode_supplier']) ?></span>
                         </td>
                         <td class="px-8 py-6">
-                            <p class="font-bold text-slate-700"><?= htmlspecialchars($f['nama_barang']) ?></p>
+                            <p class="font-bold text-slate-700"><?= htmlspecialchars($s['nama_supplier']) ?></p>
                         </td>
-                        <td class="px-8 py-6">
-                            <span class="bg-slate-100 text-slate-500 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest"><?= htmlspecialchars($f['nama_blok'] ?? 'N/A') ?> - <?= htmlspecialchars($f['rak'] ?? 'N/A') ?></span>
+                        <td class="px-8 py-6 text-slate-500 font-medium">
+                            <?= htmlspecialchars($s['kontak']) ?>
                         </td>
-                        <td class="px-8 py-6 text-center">
-                            <span class="text-lg font-black text-navy-900"><?= $f['stok_tersedia'] ?></span>
-                        </td>
-                        <td class="px-8 py-6 text-center">
-                            <span class="text-lg font-black <?= $f['stok_karantina'] > 0 ? 'text-red-500' : 'text-slate-300' ?>"><?= $f['stok_karantina'] ?></span>
+                        <td class="px-8 py-6 text-slate-500 text-xs w-1/3">
+                            <?= htmlspecialchars($s['alamat']) ?>
                         </td>
                         <td class="px-8 py-6 text-center">
                             <button class="w-10 h-10 rounded-xl bg-slate-50 text-slate-400 hover:bg-navy-900 hover:text-white transition-all flex items-center justify-center mx-auto">
@@ -96,35 +95,34 @@ include 'includes/sidebar.php';
     <div class="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg mx-4 overflow-hidden animate-fade-in">
         <div class="px-10 py-8 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
             <div>
-                <h3 class="font-black text-2xl text-navy-900 tracking-tight">Varian Baru</h3>
-                <p class="text-xs text-slate-500 font-medium">Registrasi SKU furniture ke sistem.</p>
+                <h3 class="font-black text-2xl text-navy-900 tracking-tight">Supplier Baru</h3>
+                <p class="text-xs text-slate-500 font-medium">Registrasi vendor ke sistem.</p>
             </div>
             <button onclick="document.getElementById('modalAdd').classList.add('hidden')" class="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-400 hover:text-navy-900 transition-all">&times;</button>
         </div>
-        <form method="POST" action="master_furniture.php" class="p-10">
+        <form method="POST" action="master_supplier.php" class="p-10">
             <input type="hidden" name="action" value="add">
             <div class="space-y-6">
                 <div>
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Kode Barang (SKU)</label>
-                    <input type="text" name="kode_barang" required placeholder="SOFA-999" class="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-navy-900 focus:ring-2 focus:ring-amber-500 transition-all outline-none">
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Kode Supplier</label>
+                    <input type="text" name="kode_supplier" required placeholder="SUP-001" class="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-navy-900 focus:ring-2 focus:ring-amber-500 transition-all outline-none">
                 </div>
                 <div>
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Nama Furniture</label>
-                    <input type="text" name="nama_barang" required placeholder="Nama lengkap produk..." class="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-navy-900 focus:ring-2 focus:ring-amber-500 transition-all outline-none">
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Nama Supplier</label>
+                    <input type="text" name="nama_supplier" required placeholder="PT. Vendor..." class="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-navy-900 focus:ring-2 focus:ring-amber-500 transition-all outline-none">
                 </div>
                 <div>
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Area / Lokasi Rak</label>
-                    <select name="id_lokasi" required class="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-navy-900 focus:ring-2 focus:ring-amber-500 transition-all outline-none appearance-none">
-                        <option value="" disabled selected>-- Pilih Lokasi Penyimpanan --</option>
-                        <?php foreach($lokasi_list as $l): ?>
-                            <option value="<?= $l['id_lokasi'] ?>"><?= htmlspecialchars($l['nama_blok']) ?> - <?= htmlspecialchars($l['rak']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Kontak</label>
+                    <input type="text" name="kontak" placeholder="081..." class="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-navy-900 focus:ring-2 focus:ring-amber-500 transition-all outline-none">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Alamat Lengkap</label>
+                    <textarea name="alamat" rows="2" class="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-navy-900 focus:ring-2 focus:ring-amber-500 transition-all outline-none"></textarea>
                 </div>
             </div>
             <div class="flex gap-4 mt-10">
                 <button type="button" onclick="document.getElementById('modalAdd').classList.add('hidden')" class="flex-1 py-4 rounded-2xl border border-slate-200 text-slate-500 font-bold text-sm hover:bg-slate-50 transition-all">Batal</button>
-                <button type="submit" class="flex-1 py-4 rounded-2xl bg-navy-900 text-white font-bold text-sm shadow-xl shadow-navy-900/20 hover:bg-navy-800 transition-all">Simpan SKU</button>
+                <button type="submit" class="flex-1 py-4 rounded-2xl bg-navy-900 text-white font-bold text-sm shadow-xl shadow-navy-900/20 hover:bg-navy-800 transition-all">Simpan Supplier</button>
             </div>
         </form>
     </div>

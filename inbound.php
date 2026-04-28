@@ -4,6 +4,7 @@ require_access(['Admin', 'Staff Gudang']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $no_po = $_POST['no_po'];
+    $id_supplier = $_POST['id_supplier'];
     $id_furniture = $_POST['id_furniture'];
     $qty_dipesan = (int)$_POST['qty_dipesan'];
     $qty_fisik = (int)$_POST['qty_fisik'];
@@ -13,8 +14,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->beginTransaction();
         $stmt = $pdo->prepare("UPDATE tb_furniture SET stok_tersedia = stok_tersedia + ? WHERE id_furniture = ?");
         $stmt->execute([$qty_fisik, $id_furniture]);
+        
+        $stmt_sup_name = $pdo->prepare("SELECT nama_supplier FROM tb_supplier WHERE id_supplier = ?");
+        $stmt_sup_name->execute([$id_supplier]);
+        $sup_name = $stmt_sup_name->fetchColumn();
+        
         $stmt = $pdo->prepare("INSERT INTO tb_mutasi_stok (id_furniture, tgl_mutasi, jenis_mutasi, qty, keterangan) VALUES (?, datetime('now', 'localtime'), 'IN', ?, ?)");
-        $stmt->execute([$id_furniture, $qty_fisik, "Penerimaan PO: $no_po"]);
+        $stmt->execute([$id_furniture, $qty_fisik, "Penerimaan PO: $no_po dari " . $sup_name]);
         if ($qty_fisik < $qty_dipesan) {
             $qty_kurang = $qty_dipesan - $qty_fisik;
             $stmt = $pdo->prepare("INSERT INTO tb_nota_selisih (no_po_supplier, id_furniture, qty_kurang, keterangan_refund) VALUES (?, ?, ?, ?)");
@@ -28,8 +34,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$stmt = $pdo->query("SELECT * FROM tb_furniture ORDER BY nama_barang ASC");
+$stmt = $pdo->query("SELECT f.*, l.nama_blok, l.rak FROM tb_furniture f LEFT JOIN tb_lokasi l ON f.id_lokasi = l.id_lokasi ORDER BY f.nama_barang ASC");
 $furniture_list = $stmt->fetchAll();
+
+$stmt_sup = $pdo->query("SELECT * FROM tb_supplier ORDER BY nama_supplier ASC");
+$suppliers = $stmt_sup->fetchAll();
 
 include 'includes/header.php';
 include 'includes/sidebar.php';
@@ -44,19 +53,35 @@ include 'includes/sidebar.php';
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
         <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-10">
             <form method="POST" action="inbound.php" class="space-y-8">
-                <div>
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Nomor PO Supplier</label>
-                    <input type="text" name="no_po" required placeholder="PO-202X-XXX" class="w-full bg-slate-50 border-none rounded-2xl p-5 text-sm font-bold text-navy-900 focus:ring-2 focus:ring-blue-500 transition-all outline-none">
+                <div class="grid grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Supplier</label>
+                        <select name="id_supplier" required class="w-full bg-slate-50 border-none rounded-2xl p-5 text-sm font-bold text-navy-900 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none cursor-pointer">
+                            <option value="" disabled selected>-- Vendor --</option>
+                            <?php foreach($suppliers as $s): ?>
+                                <option value="<?= $s['id_supplier'] ?>"><?= htmlspecialchars($s['nama_supplier']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Nomor PO</label>
+                        <input type="text" name="no_po" required placeholder="PO-202X-XXX" class="w-full bg-slate-50 border-none rounded-2xl p-5 text-sm font-bold text-navy-900 focus:ring-2 focus:ring-blue-500 transition-all outline-none">
+                    </div>
                 </div>
                 
                 <div>
                     <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Pilih Produk</label>
-                    <select name="id_furniture" required class="w-full bg-slate-50 border-none rounded-2xl p-5 text-sm font-bold text-navy-900 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none cursor-pointer">
+                    <select name="id_furniture" id="id_furniture" required onchange="showPutaway()" class="w-full bg-slate-50 border-none rounded-2xl p-5 text-sm font-bold text-navy-900 focus:ring-2 focus:ring-blue-500 transition-all outline-none appearance-none cursor-pointer">
                         <option value="" disabled selected>-- Pilih SKU Furniture --</option>
                         <?php foreach($furniture_list as $f): ?>
-                            <option value="<?= $f['id_furniture'] ?>"><?= htmlspecialchars($f['kode_barang']) ?> - <?= htmlspecialchars($f['nama_barang']) ?></option>
+                            <option value="<?= $f['id_furniture'] ?>" data-lokasi="<?= htmlspecialchars($f['nama_blok'] ?? 'N/A') ?> - <?= htmlspecialchars($f['rak'] ?? 'N/A') ?>"><?= htmlspecialchars($f['kode_barang']) ?> - <?= htmlspecialchars($f['nama_barang']) ?></option>
                         <?php endforeach; ?>
                     </select>
+                </div>
+                
+                <div id="putaway_info" class="hidden bg-blue-50 border border-blue-200 p-6 rounded-2xl">
+                    <p class="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1">Instruksi Putaway</p>
+                    <p class="text-sm font-bold text-blue-900">Simpan di: <span id="lokasi_text" class="text-lg font-black bg-white px-2 py-1 rounded shadow-sm ml-2"></span></p>
                 </div>
 
                 <div class="grid grid-cols-2 gap-6">
@@ -107,6 +132,17 @@ include 'includes/sidebar.php';
         else { rs.classList.add('hidden'); ir.required = false; }
     }
     i1.addEventListener('input', c); i2.addEventListener('input', c);
+    
+    function showPutaway() {
+        const sel = document.getElementById('id_furniture');
+        const opt = sel.options[sel.selectedIndex];
+        if (opt && opt.value !== "") {
+            document.getElementById('putaway_info').classList.remove('hidden');
+            document.getElementById('lokasi_text').innerText = opt.getAttribute('data-lokasi');
+        } else {
+            document.getElementById('putaway_info').classList.add('hidden');
+        }
+    }
 </script>
 
 <?php include 'includes/footer.php'; ?>
