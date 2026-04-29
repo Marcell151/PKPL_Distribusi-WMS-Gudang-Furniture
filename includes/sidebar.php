@@ -93,6 +93,12 @@
             <ul class="space-y-1">
                 <?php if (check_access(['Admin', 'Staff Gudang'])): ?>
                 <li>
+                    <a href="purchase_order.php" class="flex items-center px-4 py-3 rounded-xl transition-all duration-200 group <?= basename($_SERVER['PHP_SELF']) == 'purchase_order.php' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:bg-white/5 hover:text-white' ?>">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+                        <span class="text-sm font-semibold">Request PO (Beli)</span>
+                    </a>
+                </li>
+                <li>
                     <a href="inbound.php" class="flex items-center px-4 py-3 rounded-xl transition-all duration-200 group <?= basename($_SERVER['PHP_SELF']) == 'inbound.php' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:bg-white/5 hover:text-white' ?>">
                         <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
                         <span class="text-sm font-semibold">Inbound & Putaway</span>
@@ -130,6 +136,12 @@
         <div>
             <p class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Analytical & Sys</p>
             <ul class="space-y-1">
+                <li>
+                    <a href="riwayat_transaksi.php" class="flex items-center px-4 py-3 rounded-xl transition-all duration-200 group <?= basename($_SERVER['PHP_SELF']) == 'riwayat_transaksi.php' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:bg-white/5 hover:text-white' ?>">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                        <span class="text-sm font-semibold">Riwayat Transaksi</span>
+                    </a>
+                </li>
                 <?php if (check_access(['Admin', 'Supervisor'])): ?>
                 <li>
                     <a href="laporan.php" class="flex items-center px-4 py-3 rounded-xl transition-all duration-200 group <?= basename($_SERVER['PHP_SELF']) == 'laporan.php' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:bg-white/5 hover:text-white' ?>">

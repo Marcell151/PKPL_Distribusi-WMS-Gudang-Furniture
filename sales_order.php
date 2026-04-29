@@ -7,8 +7,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $no_so = "SO-" . date('Ymd') . "-" . rand(1000,9999);
     try {
         $pdo->beginTransaction();
-        $stmt = $pdo->prepare("INSERT INTO tb_sales_order (no_so, id_toko, tanggal_request, status) VALUES (?, ?, date('now'), 'Pending')");
-        $stmt->execute([$no_so, $id_toko]);
+        $stmt = $pdo->prepare("INSERT INTO tb_sales_order (no_so, id_toko, tanggal_request, status, id_user) VALUES (?, ?, date('now'), 'Pending', ?)");
+        $stmt->execute([$no_so, $id_toko, $_SESSION['user']['id_user']]);
         $id_so = $pdo->lastInsertId();
         $stmt = $pdo->prepare("INSERT INTO tb_detail_so (id_so, id_furniture, qty_diminta) VALUES (?, ?, ?)");
         $stmt->execute([$id_so, $id_f, $qty]);

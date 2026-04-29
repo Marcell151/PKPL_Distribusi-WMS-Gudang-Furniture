@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $success = "SO #$no_so: Lolos QC!";
             } else {
                 $stmt = $pdo->prepare("UPDATE tb_furniture SET stok_tersedia = stok_tersedia - ?, stok_karantina = stok_karantina + ? WHERE id_furniture = ?"); $stmt->execute([$qty, $qty, $id_f]);
-                $stmt = $pdo->prepare("INSERT INTO tb_mutasi_stok (id_furniture, tgl_mutasi, jenis_mutasi, qty, keterangan) VALUES (?, datetime('now'), 'MUTASI_RUSAK', ?, ?)"); $stmt->execute([$id_f, -$qty, "RUSAK (Gagal QC) SO: ".$no_so." - ".$ket]);
+                $stmt = $pdo->prepare("INSERT INTO tb_mutasi_stok (id_furniture, tgl_mutasi, jenis_mutasi, qty, keterangan, id_user) VALUES (?, datetime('now'), 'MUTASI_RUSAK', ?, ?, ?)"); $stmt->execute([$id_f, -$qty, "RUSAK (Gagal QC) SO: ".$no_so." - ".$ket, $_SESSION['user']['id_user']]);
                 $stmt = $pdo->prepare("UPDATE tb_sales_order SET status = 'Pending' WHERE id_so = ?");
                 $stmt->execute([$id_so]);
                 $error = "SO #$no_so: Gagal QC, barang masuk karantina. SO kembali ke antrean Picking.";
@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $id_f = $_POST['id_f']; $qty = (int)$_POST['qty'];
             $stmt = $pdo->prepare("UPDATE tb_furniture SET stok_tersedia = stok_tersedia - ? WHERE id_furniture = ?"); $stmt->execute([$qty, $id_f]);
             $stmt = $pdo->prepare("UPDATE tb_sales_order SET status = 'Shipped' WHERE id_so = ?"); $stmt->execute([$id_so]);
-            $stmt = $pdo->prepare("INSERT INTO tb_mutasi_stok (id_furniture, tgl_mutasi, jenis_mutasi, qty, keterangan) VALUES (?, datetime('now'), 'OUT', ?, ?)"); $stmt->execute([$id_f, -$qty, "Kirim SO: ".$no_so]);
+            $stmt = $pdo->prepare("INSERT INTO tb_mutasi_stok (id_furniture, tgl_mutasi, jenis_mutasi, qty, keterangan, id_user) VALUES (?, datetime('now'), 'OUT', ?, ?, ?)"); $stmt->execute([$id_f, -$qty, "Kirim SO: ".$no_so, $_SESSION['user']['id_user']]);
             $success = "SO #$no_so: Berhasil dikirim! Stok gudang telah dipotong.";
         }
         $pdo->commit();

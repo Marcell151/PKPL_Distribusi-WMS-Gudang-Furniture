@@ -19,8 +19,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt_sup_name->execute([$id_supplier]);
         $sup_name = $stmt_sup_name->fetchColumn();
         
-        $stmt = $pdo->prepare("INSERT INTO tb_mutasi_stok (id_furniture, tgl_mutasi, jenis_mutasi, qty, keterangan) VALUES (?, datetime('now', 'localtime'), 'IN', ?, ?)");
-        $stmt->execute([$id_furniture, $qty_fisik, "Penerimaan PO: $no_po dari " . $sup_name]);
+        $stmt = $pdo->prepare("INSERT INTO tb_mutasi_stok (id_furniture, tgl_mutasi, jenis_mutasi, qty, keterangan, id_user) VALUES (?, datetime('now', 'localtime'), 'IN', ?, ?, ?)");
+        $stmt->execute([$id_furniture, $qty_fisik, "Penerimaan PO: $no_po dari " . $sup_name, $_SESSION['user']['id_user']]);
         if ($qty_fisik < $qty_dipesan) {
             $qty_kurang = $qty_dipesan - $qty_fisik;
             $stmt = $pdo->prepare("INSERT INTO tb_nota_selisih (no_po_supplier, id_furniture, qty_kurang, keterangan_refund) VALUES (?, ?, ?, ?)");

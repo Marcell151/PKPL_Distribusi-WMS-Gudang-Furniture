@@ -2,15 +2,21 @@
 require 'config.php';
 
 try {
+    // DROP OLD TABLES TO ENSURE SCHEMA UPDATES ARE APPLIED
+    $tables = ['tb_detail_po', 'tb_detail_so', 'tb_mutasi_stok', 'tb_nota_selisih', 'tb_opname', 'tb_purchase_order', 'tb_sales_order', 'tb_furniture', 'tb_lokasi', 'tb_toko', 'tb_supplier', 'tb_users'];
+    foreach($tables as $t) { 
+        $pdo->exec("DROP TABLE IF EXISTS $t"); 
+    }
+
     // 1. tb_users
-    $pdo->exec("CREATE TABLE IF NOT EXISTS tb_users (
+    $pdo->exec("CREATE TABLE tb_users (
         id_user INTEGER PRIMARY KEY AUTOINCREMENT,
         nama_lengkap TEXT NOT NULL,
         role TEXT NOT NULL
     )");
 
     // 2. tb_supplier
-    $pdo->exec("CREATE TABLE IF NOT EXISTS tb_supplier (
+    $pdo->exec("CREATE TABLE tb_supplier (
         id_supplier INTEGER PRIMARY KEY AUTOINCREMENT,
         kode_supplier TEXT UNIQUE NOT NULL,
         nama_supplier TEXT NOT NULL,
@@ -19,7 +25,7 @@ try {
     )");
 
     // 3. tb_toko
-    $pdo->exec("CREATE TABLE IF NOT EXISTS tb_toko (
+    $pdo->exec("CREATE TABLE tb_toko (
         id_toko INTEGER PRIMARY KEY AUTOINCREMENT,
         kode_toko TEXT UNIQUE NOT NULL,
         nama_toko TEXT NOT NULL,
@@ -28,7 +34,7 @@ try {
     )");
 
     // 4. tb_lokasi
-    $pdo->exec("CREATE TABLE IF NOT EXISTS tb_lokasi (
+    $pdo->exec("CREATE TABLE tb_lokasi (
         id_lokasi INTEGER PRIMARY KEY AUTOINCREMENT,
         nama_blok TEXT NOT NULL,
         rak TEXT NOT NULL,
@@ -36,7 +42,7 @@ try {
     )");
 
     // 5. tb_furniture
-    $pdo->exec("CREATE TABLE IF NOT EXISTS tb_furniture (
+    $pdo->exec("CREATE TABLE tb_furniture (
         id_furniture INTEGER PRIMARY KEY AUTOINCREMENT,
         kode_barang TEXT UNIQUE NOT NULL,
         nama_barang TEXT NOT NULL,
@@ -47,17 +53,19 @@ try {
     )");
 
     // 6. tb_sales_order
-    $pdo->exec("CREATE TABLE IF NOT EXISTS tb_sales_order (
+    $pdo->exec("CREATE TABLE tb_sales_order (
         id_so INTEGER PRIMARY KEY AUTOINCREMENT,
         no_so TEXT UNIQUE NOT NULL,
         id_toko INTEGER,
         tanggal_request TEXT NOT NULL,
         status TEXT DEFAULT 'Pending',
-        FOREIGN KEY (id_toko) REFERENCES tb_toko(id_toko)
+        id_user INTEGER,
+        FOREIGN KEY (id_toko) REFERENCES tb_toko(id_toko),
+        FOREIGN KEY (id_user) REFERENCES tb_users(id_user)
     )");
 
     // 7. tb_detail_so
-    $pdo->exec("CREATE TABLE IF NOT EXISTS tb_detail_so (
+    $pdo->exec("CREATE TABLE tb_detail_so (
         id_detail INTEGER PRIMARY KEY AUTOINCREMENT,
         id_so INTEGER,
         id_furniture INTEGER,
@@ -66,19 +74,43 @@ try {
         FOREIGN KEY (id_furniture) REFERENCES tb_furniture(id_furniture)
     )");
 
+    // 7a. tb_purchase_order
+    $pdo->exec("CREATE TABLE tb_purchase_order (
+        id_po INTEGER PRIMARY KEY AUTOINCREMENT,
+        no_po TEXT UNIQUE NOT NULL,
+        id_supplier INTEGER,
+        tanggal_po TEXT NOT NULL,
+        status TEXT DEFAULT 'Pending',
+        id_user INTEGER,
+        FOREIGN KEY (id_supplier) REFERENCES tb_supplier(id_supplier),
+        FOREIGN KEY (id_user) REFERENCES tb_users(id_user)
+    )");
+
+    // 7b. tb_detail_po
+    $pdo->exec("CREATE TABLE tb_detail_po (
+        id_detail_po INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_po INTEGER,
+        id_furniture INTEGER,
+        qty_dipesan INTEGER,
+        FOREIGN KEY (id_po) REFERENCES tb_purchase_order(id_po),
+        FOREIGN KEY (id_furniture) REFERENCES tb_furniture(id_furniture)
+    )");
+
     // 8. tb_mutasi_stok
-    $pdo->exec("CREATE TABLE IF NOT EXISTS tb_mutasi_stok (
+    $pdo->exec("CREATE TABLE tb_mutasi_stok (
         id_mutasi INTEGER PRIMARY KEY AUTOINCREMENT,
         id_furniture INTEGER,
         tgl_mutasi TEXT NOT NULL,
         jenis_mutasi TEXT NOT NULL,
         qty INTEGER NOT NULL,
         keterangan TEXT,
-        FOREIGN KEY (id_furniture) REFERENCES tb_furniture(id_furniture)
+        id_user INTEGER,
+        FOREIGN KEY (id_furniture) REFERENCES tb_furniture(id_furniture),
+        FOREIGN KEY (id_user) REFERENCES tb_users(id_user)
     )");
 
     // 9. tb_nota_selisih
-    $pdo->exec("CREATE TABLE IF NOT EXISTS tb_nota_selisih (
+    $pdo->exec("CREATE TABLE tb_nota_selisih (
         id_nota INTEGER PRIMARY KEY AUTOINCREMENT,
         no_po_supplier TEXT NOT NULL,
         id_furniture INTEGER,
@@ -88,7 +120,7 @@ try {
     )");
 
     // 10. tb_opname
-    $pdo->exec("CREATE TABLE IF NOT EXISTS tb_opname (
+    $pdo->exec("CREATE TABLE tb_opname (
         id_opname INTEGER PRIMARY KEY AUTOINCREMENT,
         tgl_request TEXT NOT NULL,
         id_furniture INTEGER,
@@ -100,10 +132,6 @@ try {
         FOREIGN KEY (id_furniture) REFERENCES tb_furniture(id_furniture)
     )");
 
-
-    // CLEAR OLD DATA
-    $tables = ['tb_users', 'tb_detail_so', 'tb_sales_order', 'tb_mutasi_stok', 'tb_nota_selisih', 'tb_opname', 'tb_furniture', 'tb_lokasi', 'tb_toko', 'tb_supplier'];
-    foreach($tables as $t) { $pdo->exec("DELETE FROM $t"); }
     $pdo->exec("UPDATE sqlite_sequence SET seq = 0");
 
     // DUMMY DATA USERS
@@ -154,13 +182,13 @@ try {
 
     // DUMMY SALES ORDER (Status: Pending, Picking, QC, Packing, Shipped)
     $so_data = [
-        ['SO-20231020-001', 1, date('Y-m-d', strtotime('-5 days')), 'Shipped'],
-        ['SO-20231021-002', 2, date('Y-m-d', strtotime('-4 days')), 'Pending'],
-        ['SO-20231022-003', 3, date('Y-m-d', strtotime('-3 days')), 'Picking'],
-        ['SO-20231023-004', 1, date('Y-m-d', strtotime('-2 days')), 'QC_Passed'],
-        ['SO-20231024-005', 2, date('Y-m-d', strtotime('-1 days')), 'Packing']
+        ['SO-20231020-001', 1, date('Y-m-d', strtotime('-5 days')), 'Shipped', 1],
+        ['SO-20231021-002', 2, date('Y-m-d', strtotime('-4 days')), 'Pending', 3],
+        ['SO-20231022-003', 3, date('Y-m-d', strtotime('-3 days')), 'Picking', 3],
+        ['SO-20231023-004', 1, date('Y-m-d', strtotime('-2 days')), 'QC_Passed', 1],
+        ['SO-20231024-005', 2, date('Y-m-d', strtotime('-1 days')), 'Packing', 3]
     ];
-    $stmt_so = $pdo->prepare("INSERT INTO tb_sales_order (no_so, id_toko, tanggal_request, status) VALUES (?, ?, ?, ?)");
+    $stmt_so = $pdo->prepare("INSERT INTO tb_sales_order (no_so, id_toko, tanggal_request, status, id_user) VALUES (?, ?, ?, ?, ?)");
     foreach ($so_data as $row) { $stmt_so->execute($row); }
 
     // SO DETAILS
@@ -174,12 +202,25 @@ try {
 
     // MUTATION HISTORY
     $mutasi_data = [
-        [1, date('Y-m-d H:i:s', strtotime('-15 days')), 'IN', 52, 'Penerimaan PO-001 SUP-002'],
-        [1, date('Y-m-d H:i:s', strtotime('-10 days')), 'MUTASI_RUSAK', -2, 'Cacat permukaan kain'],
-        [1, date('Y-m-d H:i:s', strtotime('-5 days')), 'OUT', -5, 'Kirim SO-001']
+        [1, date('Y-m-d H:i:s', strtotime('-15 days')), 'IN', 52, 'Penerimaan PO-001 SUP-002', 3],
+        [1, date('Y-m-d H:i:s', strtotime('-10 days')), 'MUTASI_RUSAK', -2, 'Cacat permukaan kain', 3],
+        [1, date('Y-m-d H:i:s', strtotime('-5 days')), 'OUT', -5, 'Kirim SO-001', 3]
     ];
-    $stmt_mut = $pdo->prepare("INSERT INTO tb_mutasi_stok (id_furniture, tgl_mutasi, jenis_mutasi, qty, keterangan) VALUES (?, ?, ?, ?, ?)");
+    $stmt_mut = $pdo->prepare("INSERT INTO tb_mutasi_stok (id_furniture, tgl_mutasi, jenis_mutasi, qty, keterangan, id_user) VALUES (?, ?, ?, ?, ?, ?)");
     foreach ($mutasi_data as $row) { $stmt_mut->execute($row); }
+
+    // DUMMY PURCHASE ORDER
+    $po_data = [
+        ['PO-20231010-001', 2, date('Y-m-d', strtotime('-15 days')), 'Completed', 1],
+        ['PO-20231025-002', 1, date('Y-m-d'), 'Pending', 1]
+    ];
+    $stmt_po = $pdo->prepare("INSERT INTO tb_purchase_order (no_po, id_supplier, tanggal_po, status, id_user) VALUES (?, ?, ?, ?, ?)");
+    foreach ($po_data as $row) { $stmt_po->execute($row); }
+    
+    $pdo->exec("INSERT INTO tb_detail_po (id_po, id_furniture, qty_dipesan) VALUES 
+        (1, 1, 52),
+        (2, 2, 20), (2, 3, 10)
+    ");
 
     echo "<div style='font-family: sans-serif; padding: 40px; text-align: center; background: #f8fafc; min-height: 100vh;'>
             <div style='background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); display: inline-block;'>
