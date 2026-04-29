@@ -14,17 +14,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $success = "SO #$no_so: Mulai proses Picking!";
         } elseif ($_POST['action'] === 'qc_process') {
             $id_f = $_POST['id_f']; $qty = (int)$_POST['qty']; $kep = $_POST['kep']; $ket = $_POST['ket'] ?? '';
-            $stmt = $pdo->prepare("SELECT stok_tersedia FROM tb_furniture WHERE id_furniture = ?");
-            $stmt->execute([$id_f]); $stok = $stmt->fetchColumn();
-            if ($stok < $qty) throw new Exception("Stok tidak cukup!");
             
             if ($kep === 'lolos') {
                 $stmt = $pdo->prepare("UPDATE tb_sales_order SET status = 'QC_Passed' WHERE id_so = ?");
                 $stmt->execute([$id_so]);
                 $success = "SO #$no_so: Lolos QC!";
             } else {
-                $stmt = $pdo->prepare("UPDATE tb_furniture SET stok_tersedia = stok_tersedia - ?, stok_karantina = stok_karantina + ? WHERE id_furniture = ?"); $stmt->execute([$qty, $qty, $id_f]);
-                $stmt = $pdo->prepare("INSERT INTO tb_mutasi_stok (id_furniture, tgl_mutasi, jenis_mutasi, qty, keterangan, id_user) VALUES (?, datetime('now'), 'MUTASI_RUSAK', ?, ?, ?)"); $stmt->execute([$id_f, -$qty, "RUSAK (Gagal QC) SO: ".$no_so." - ".$ket, $_SESSION['user']['id_user']]);
+                // Pindah ke Karantina
+                $stmt = $pdo->prepare("UPDATE tb_furniture SET stok_tersedia = stok_tersedia - ?, stok_karantina = stok_karantina + ? WHERE id_furniture = ?"); 
+                $stmt->execute([$qty, $qty, $id_f]);
+                
+                $stmt = $pdo->prepare("INSERT INTO tb_mutasi_stok (id_furniture, tgl_mutasi, jenis_mutasi, qty, keterangan, id_user) VALUES (?, datetime('now'), 'MUTASI_RUSAK', ?, ?, ?)"); 
+                $stmt->execute([$id_f, -$qty, "RUSAK (Gagal QC) SO: ".$no_so." - ".$ket, $_SESSION['user']['id_user']]);
+                
                 $stmt = $pdo->prepare("UPDATE tb_sales_order SET status = 'Pending' WHERE id_so = ?");
                 $stmt->execute([$id_so]);
                 $error = "SO #$no_so: Gagal QC, barang masuk karantina. SO kembali ke antrean Picking.";
@@ -35,9 +37,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $success = "SO #$no_so: Selesai Packing!";
         } elseif ($_POST['action'] === 'shipped') {
             $id_f = $_POST['id_f']; $qty = (int)$_POST['qty'];
-            $stmt = $pdo->prepare("UPDATE tb_furniture SET stok_tersedia = stok_tersedia - ? WHERE id_furniture = ?"); $stmt->execute([$qty, $id_f]);
-            $stmt = $pdo->prepare("UPDATE tb_sales_order SET status = 'Shipped' WHERE id_so = ?"); $stmt->execute([$id_so]);
-            $stmt = $pdo->prepare("INSERT INTO tb_mutasi_stok (id_furniture, tgl_mutasi, jenis_mutasi, qty, keterangan, id_user) VALUES (?, datetime('now'), 'OUT', ?, ?, ?)"); $stmt->execute([$id_f, -$qty, "Kirim SO: ".$no_so, $_SESSION['user']['id_user']]);
+            
+            // Potong Stok Akhir
+            $stmt = $pdo->prepare("UPDATE tb_furniture SET stok_tersedia = stok_tersedia - ? WHERE id_furniture = ?"); 
+            $stmt->execute([$qty, $id_f]);
+            
+            $stmt = $pdo->prepare("UPDATE tb_sales_order SET status = 'Shipped' WHERE id_so = ?"); 
+            $stmt->execute([$id_so]);
+            
+            $stmt = $pdo->prepare("INSERT INTO tb_mutasi_stok (id_furniture, tgl_mutasi, jenis_mutasi, qty, keterangan, id_user) VALUES (?, datetime('now'), 'OUT', ?, ?, ?)"); 
+            $stmt->execute([$id_f, -$qty, "Kirim SO: ".$no_so, $_SESSION['user']['id_user']]);
+            
             $success = "SO #$no_so: Berhasil dikirim! Stok gudang telah dipotong.";
         }
         $pdo->commit();
@@ -53,8 +63,8 @@ include 'includes/sidebar.php';
 
 <div class="flex-1 overflow-y-auto p-8 animate-fade-in">
     <header class="mb-10">
-        <h2 class="text-3xl font-extrabold text-navy-900 tracking-tight">Outbound QC</h2>
-        <p class="text-slate-500 font-medium mt-1">Audit kualitas sebelum distribusi unit furniture.</p>
+        <h2 class="text-3xl font-extrabold text-navy-900 tracking-tight">Outbound & QC (Distribusi)</h2>
+        <p class="text-slate-500 font-medium mt-1">Eksekusi Sales Order: Inspeksi kualitas dan pengiriman unit ke customer.</p>
     </header>
 
     <?php if(isset($success)): ?>
@@ -64,11 +74,11 @@ include 'includes/sidebar.php';
         <div class="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-2xl mb-8 font-bold text-sm"><?= $error ?></div>
     <?php endif; ?>
 
-    <div class="flex gap-2 mb-10 bg-slate-200 p-2 rounded-2xl w-fit">
-        <button id="btn-pending" onclick="st('Pending')" class="px-6 py-3 rounded-xl font-black text-sm transition-all bg-navy-900 text-white shadow-lg relative">1. Picking List <span class="absolute -top-2 -right-2 bg-amber-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full"><?= count(array_filter($sos, fn($x) => $x['status'] == 'Pending')) ?></span></button>
-        <button id="btn-picking" onclick="st('Picking')" class="px-6 py-3 rounded-xl font-black text-sm transition-all text-slate-600 hover:bg-white/50 relative">2. Proses QC <span class="absolute -top-2 -right-2 bg-blue-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full"><?= count(array_filter($sos, fn($x) => $x['status'] == 'Picking')) ?></span></button>
-        <button id="btn-qc_passed" onclick="st('QC_Passed')" class="px-6 py-3 rounded-xl font-black text-sm transition-all text-slate-600 hover:bg-white/50 relative">3. Packing <span class="absolute -top-2 -right-2 bg-purple-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full"><?= count(array_filter($sos, fn($x) => $x['status'] == 'QC_Passed')) ?></span></button>
-        <button id="btn-packing" onclick="st('Packing')" class="px-6 py-3 rounded-xl font-black text-sm transition-all text-slate-600 hover:bg-white/50 relative">4. Siap Kirim <span class="absolute -top-2 -right-2 bg-green-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full"><?= count(array_filter($sos, fn($x) => $x['status'] == 'Packing')) ?></span></button>
+    <div class="flex flex-wrap gap-2 mb-10 bg-slate-200 p-2 rounded-2xl w-fit">
+        <button id="btn-Pending" onclick="st('Pending')" class="px-6 py-3 rounded-xl font-black text-[10px] transition-all bg-navy-900 text-white shadow-lg relative uppercase tracking-widest">1. Picking List <span class="absolute -top-2 -right-2 bg-amber-500 text-white text-[8px] w-5 h-5 flex items-center justify-center rounded-full"><?= count(array_filter($sos, fn($x) => $x['status'] == 'Pending')) ?></span></button>
+        <button id="btn-Picking" onclick="st('Picking')" class="px-6 py-3 rounded-xl font-black text-[10px] transition-all text-slate-600 hover:bg-white/50 relative uppercase tracking-widest">2. Proses QC <span class="absolute -top-2 -right-2 bg-blue-500 text-white text-[8px] w-5 h-5 flex items-center justify-center rounded-full"><?= count(array_filter($sos, fn($x) => $x['status'] == 'Picking')) ?></span></button>
+        <button id="btn-QC_Passed" onclick="st('QC_Passed')" class="px-6 py-3 rounded-xl font-black text-[10px] transition-all text-slate-600 hover:bg-white/50 relative uppercase tracking-widest">3. Packing <span class="absolute -top-2 -right-2 bg-purple-500 text-white text-[8px] w-5 h-5 flex items-center justify-center rounded-full"><?= count(array_filter($sos, fn($x) => $x['status'] == 'QC_Passed')) ?></span></button>
+        <button id="btn-Packing" onclick="st('Packing')" class="px-6 py-3 rounded-xl font-black text-[10px] transition-all text-slate-600 hover:bg-white/50 relative uppercase tracking-widest">4. Siap Kirim <span class="absolute -top-2 -right-2 bg-green-500 text-white text-[8px] w-5 h-5 flex items-center justify-center rounded-full"><?= count(array_filter($sos, fn($x) => $x['status'] == 'Packing')) ?></span></button>
     </div>
 
     <?php foreach(['Pending', 'Picking', 'QC_Passed', 'Packing'] as $status): ?>
@@ -92,7 +102,7 @@ include 'includes/sidebar.php';
                         <p class="text-xs font-bold text-navy-900 truncate"><?= $s['nama_barang'] ?></p>
                     </div>
                 </div>
-                <div class="mt-2 text-xs font-bold text-blue-600 bg-blue-50 px-3 py-2 rounded-lg">Lokasi: <?= htmlspecialchars($s['nama_blok'] ?? 'N/A') ?> - <?= htmlspecialchars($s['rak'] ?? 'N/A') ?></div>
+                <div class="mt-2 text-xs font-bold text-blue-600 bg-blue-50 px-3 py-2 rounded-lg italic">Ambil di: <?= htmlspecialchars($s['nama_blok'] ?? 'N/A') ?> - <?= htmlspecialchars($s['rak'] ?? 'N/A') ?></div>
             </div>
 
             <form method="POST" action="outbound.php" class="mt-auto">
@@ -110,7 +120,7 @@ include 'includes/sidebar.php';
                     <button type="submit" class="w-full py-4 rounded-2xl bg-purple-600 text-white font-black text-xs shadow-lg shadow-purple-600/20 hover:bg-purple-700 transition-all uppercase tracking-widest">Selesai Packing</button>
                 <?php elseif($status === 'Packing'): ?>
                     <input type="hidden" name="action" value="shipped">
-                    <button type="submit" class="w-full py-4 rounded-2xl bg-green-600 text-white font-black text-xs shadow-lg shadow-green-600/20 hover:bg-green-700 transition-all uppercase tracking-widest flex items-center justify-center gap-2"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg> Kirim & Cetak Surat Jalan</button>
+                    <button type="submit" class="w-full py-4 rounded-2xl bg-green-600 text-white font-black text-xs shadow-lg shadow-green-600/20 hover:bg-green-700 transition-all uppercase tracking-widest flex items-center justify-center gap-2">Cetak Surat Jalan & Kirim</button>
                 <?php endif; ?>
             </form>
         </div>
@@ -144,19 +154,22 @@ include 'includes/sidebar.php';
                 </div>
             </div>
 
-            <textarea name="ket" id="q_ket" rows="2" placeholder="Catatan inspeksi fisik..." class="w-full bg-slate-50 rounded-2xl p-6 text-sm font-medium outline-none focus:ring-2 focus:ring-navy-900"></textarea>
+            <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Checklist Kondisi Fisik</label>
+                <textarea name="ket" id="q_ket" rows="2" placeholder="Catatan inspeksi fisik (Wajib diisi jika gagal QC)..." class="w-full bg-slate-50 rounded-2xl p-6 text-sm font-medium outline-none focus:ring-2 focus:ring-navy-900"></textarea>
+            </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <button type="button" onclick="sqc('lolos')" class="flex flex-col items-center justify-center py-8 rounded-[2rem] bg-[#10b981] text-white shadow-lg shadow-green-500/30 hover:scale-[1.02] transition-all border-4 border-white">
-                        <svg class="w-10 h-10 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
-                        <span class="font-black text-xl uppercase tracking-tighter">Lolos QC</span>
-                    </button>
-                    
-                    <button type="button" onclick="sqc('gagal')" class="flex flex-col items-center justify-center py-8 rounded-[2rem] bg-[#ef4444] text-white shadow-lg shadow-red-500/30 hover:scale-[1.02] transition-all border-4 border-white">
-                        <svg class="w-10 h-10 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        <span class="font-black text-xl uppercase tracking-tighter">Gagal QC</span>
-                    </button>
-                </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <button type="button" onclick="sqc('lolos')" class="flex flex-col items-center justify-center py-8 rounded-[2rem] bg-[#10b981] text-white shadow-lg shadow-green-500/30 hover:scale-[1.02] transition-all border-4 border-white">
+                    <svg class="w-10 h-10 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                    <span class="font-black text-xl uppercase tracking-tighter">Lolos QC</span>
+                </button>
+                
+                <button type="button" onclick="sqc('gagal')" class="flex flex-col items-center justify-center py-8 rounded-[2rem] bg-[#ef4444] text-white shadow-lg shadow-red-500/30 hover:scale-[1.02] transition-all border-4 border-white">
+                    <svg class="w-10 h-10 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    <span class="font-black text-xl uppercase tracking-tighter">Gagal QC</span>
+                </button>
+            </div>
         </form>
     </div>
 </div>
@@ -167,13 +180,13 @@ include 'includes/sidebar.php';
         tabs.forEach(tab => {
             const btn = document.getElementById('btn-'+tab);
             const content = document.getElementById('tab-'+tab);
-            if(btn) btn.className="px-6 py-3 rounded-xl font-black text-sm transition-all text-slate-600 hover:bg-white/50 relative";
+            if(btn) btn.className="px-6 py-3 rounded-xl font-black text-[10px] transition-all text-slate-600 hover:bg-white/50 relative uppercase tracking-widest";
             if(content) content.classList.add('hidden');
         });
         
         const activeBtn = document.getElementById('btn-'+t);
         const activeContent = document.getElementById('tab-'+t);
-        if(activeBtn) activeBtn.className="px-6 py-3 rounded-xl font-black text-sm transition-all bg-navy-900 text-white shadow-lg relative";
+        if(activeBtn) activeBtn.className="px-6 py-3 rounded-xl font-black text-[10px] transition-all bg-navy-900 text-white shadow-lg relative uppercase tracking-widest";
         if(activeContent) activeContent.classList.remove('hidden');
     }
     
