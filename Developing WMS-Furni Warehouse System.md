@@ -443,3 +443,283 @@ Sistem sudah menyelesaikan tahap integrasi transaksi Purchase Order dan pelacaka
 
 **Catatan untuk GPT:** 
 "Gunakan ringkasan di atas sebagai basis pengetahuan untuk memberikan saran pengembangan lebih lanjut atau menjawab pertanyaan terkait logika kodingan PHP yang ada di dalam sistem WMS-Furni ini."
+
+### User Input
+
+nah in isaya beiurkan tekait peneysuaian itu dari masukkan doesne saya,
+Kamu adalah Expert Fullstack Developer (PHP, SQLite3, Tailwind CSS). Saya memiliki sistem bernama "WMS-Furni Enterprise Edition". 
+
+Berikut adalah konteks arsitektur database saya saat ini (Sudah ada 12 tabel):
+[tb_users, tb_supplier, tb_toko, tb_lokasi, tb_furniture, tb_purchase_order, tb_detail_po, tb_sales_order, tb_detail_so, tb_mutasi_stok, tb_nota_selisih, tb_opname].
+
+TUGAS UTAMA:
+Dosen penguji baru saja melakukan review dan memberikan kritik tajam: "Mana transaksi pembeliannya? Mana transaksi penjualannya? Mana data customernya (tokonya)?". 
+
+Meskipun tabelnya sudah ada di database, UI dan Alur sistem saat ini belum menonjolkan proses transaksi tersebut. Tolong perbarui dan buatkan kode PHP/HTML untuk halaman-halaman berikut agar alur transaksinya terlihat sangat jelas, formal, dan sesuai standar sistem Enterprise:
+
+1. UPDATE SIDEBAR MENU (UI/UX)
+Ubah penamaan menu di Sidebar agar bahasa transaksinya sangat kental di mata dosen.
+- Buat grup menu "MASTER DATA" berisi: Data Barang, Data Supplier, dan Data Customer/Toko.
+- Buat grup menu "TRANSAKSI" berisi: Purchase Order (Pembelian) dan Sales Order (Penjualan).
+- Buat grup menu "GUDANG & LOGISTIK" berisi: Inbound (Terima Barang), Outbound & QC, dan Inventory (Kartu Stok & Opname).
+
+2. BUAT HALAMAN MASTER CUSTOMER/TOKO (`master_toko.php`)
+- Dosen menanyakan "Jualannya ke siapa? Customernya mana?". 
+- Buatkan halaman CRUD sederhana namun elegan untuk mengelola `tb_toko` (Nama Toko, Alamat, Kontak, PIC). 
+
+3. BUAT HALAMAN TRANSAKSI PEMBELIAN / PO (`transaksi_po.php`)
+- Dosen meminta bukti "Pemesanan Pembelian".
+- Buatkan halaman pembuatan Purchase Order.
+- Form Input: Pilih Supplier, Tanggal PO, Pilih Barang (bisa multiple/dinamis), dan Qty. 
+- Saat disimpan, masuk ke `tb_purchase_order` dan `tb_detail_po` dengan status "Menunggu Pengiriman". TIDAK memotong/menambah stok, hanya membuat dokumen transaksi.
+
+4. PERBARUI HALAMAN INBOUND / TERIMA BARANG (`inbound.php`)
+- Alurnya harus: Staff gudang membuka halaman Inbound -> Memilih "Nomor PO" yang statusnya masih 'Menunggu Pengiriman' -> Sistem menampilkan daftar barang dari PO tersebut.
+- Staff melakukan input "Qty Fisik yang Diterima". 
+- Jika sesuai: Update stok_tersedia (+), update status PO jadi 'Selesai', catat di `tb_mutasi_stok` (IN).
+- Jika Qty Fisik < Qty PO: Buatkan Nota Selisih otomatis, sisanya update stok dan mutasi.
+
+5. BUAT HALAMAN TRANSAKSI PENJUALAN / SO (`transaksi_so.php`)
+- Dosen menanyakan "Keluarnya lewat mana? Transaksi ordernya mana?".
+- Buatkan halaman untuk Admin membuat Sales Order (Pesanan dari Pelanggan).
+- Form Input: Pilih Customer/Toko (dari tb_toko), Tanggal SO, Pilih Barang, Qty.
+- Wajib ada VALIDASI: Qty pesanan tidak boleh melebihi `stok_tersedia` di `tb_furniture`.
+- Saat disimpan, masuk ke `tb_sales_order` dengan status "Pending (Siap Picking)". Belum memotong stok gudang.
+
+6. PERBARUI HALAMAN OUTBOUND & QC (`outbound.php`)
+- Halaman ini bertugas mengeksekusi Sales Order yang sudah dibuat.
+- Tampilkan daftar SO berstatus 'Pending'.
+- Saat tombol "Proses QC & Kirim" diklik, munculkan form checklist kondisi barang.
+- Jika lolos QC: Potong stok, insert `tb_mutasi_stok` (OUT), ubah status SO jadi 'Shipped'.
+
+KODE YANG DIHARAPKAN:
+Berikan saya update kodingan PHP lengkap (termasuk query SQLite PDO dan styling Tailwind) untuk mengeksekusi 6 poin di atas. Fokus pada visualisasi transaksi agar saat dosen melakukan demo aplikasi, alur dari "Beli (PO) -> Simpan (Inbound) -> Jual (SO) -> Kirim (Outbound)" terlihat sangat sempurna dan tidak terbantahkan.
+
+*Viewed [transaksi_po.php](file:///c:/xampp/htdocs/wms_funitur/transaksi_po.php) *
+
+*Edited relevant file*
+
+*Viewed [sidebar.php](file:///c:/xampp/htdocs/wms_funitur/includes/sidebar.php) *
+
+*Edited relevant file*
+
+*Edited relevant file*
+
+*Edited relevant file*
+
+*Edited relevant file*
+
+*Edited relevant file*
+
+*Edited relevant file*
+
+### Planner Response
+
+Saya telah melakukan perombakan besar pada sistem **WMS-Furni Enterprise Edition** untuk menonjolkan alur transaksi bisnis yang diminta oleh dosen penguji. Sekarang, alur **"Beli (PO) -> Terima (Inbound) -> Jual (SO) -> Kirim (Outbound)"** terintegrasi secara relasional dan memiliki UI yang sangat formal.
+
+Berikut adalah ringkasan perubahan yang telah saya terapkan:
+
+### 1. Reorganisasi Sidebar (UI/UX Enterprise)
+Sidebar telah dikelompokkan menjadi kategori yang lebih profesional:
+*   **MASTER DATA**: Data Barang, Data Supplier, dan **Data Customer** (Baru).
+*   **TRANSAKSI BISNIS**: Purchase Order (Beli) dan Sales Order (Jual).
+*   **GUDANG & LOGISTIK**: Inbound (Terima), Outbound & QC, serta Kartu Stok.
+
+### 2. Modul Master Customer (`master_toko.php`)
+Saya telah membuat halaman CRUD untuk mengelola data Toko/Customer. Sekarang Anda bisa menjawab pertanyaan dosen: *"Kita jualan ke siapa?"* dengan menunjukkan daftar customer resmi di halaman ini.
+
+### 3. Alur Pembelian: Purchase Order (`transaksi_po.php`)
+*   Admin/Supervisor kini membuat dokumen **PO** terlebih dahulu.
+*   Pilih Supplier, Tanggal, dan daftar barang.
+*   **Logika Bisnis**: Saat PO dibuat, statusnya adalah "Menunggu Pengiriman" dan **belum menambah stok**. Ini adalah dokumen komitmen pembelian.
+
+### 4. Alur Penerimaan: Inbound Berbasis PO (`inbound.php`)
+*   Staff gudang tidak lagi asal input barang masuk. Mereka harus **memilih Nomor PO** yang aktif.
+*   Sistem otomatis menampilkan daftar barang yang dipesan di PO tersebut.
+*   **Validasi**: Jika jumlah fisik yang diterima kurang dari PO, sistem otomatis membuat **Nota Selisih** dan mencatat keterangan refund/kekurangan. Stok hanya bertambah sesuai jumlah fisik yang diterima.
+
+### 5. Alur Penjualan: Sales Order (`transaksi_so.php`)
+*   Halaman baru untuk mencatat pesanan dari Customer.
+*   **Validasi Ketat**: Sistem akan menolak (Error) jika Anda mencoba menjual barang dengan jumlah melebihi `stok_tersedia`.
+*   **Status**: Saat disimpan, status menjadi "Pending (Siap Picking)" dan **belum memotong stok**.
+
+### 6. Alur Pengiriman: Outbound & QC Berbasis SO (`outbound.php`)
+*   Halaman ini sekarang memproses antrean **Sales Order**.
+*   **Integrasi QC**: Sebelum dikirim, barang harus melewati inspeksi QC. Jika gagal, barang masuk Karantina (Rusak) dan SO kembali ke antrean untuk dicarikan barang pengganti.
+*   **Finalisasi**: Stok gudang baru benar-benar terpotong setelah tombol "Cetak Surat Jalan & Kirim" diklik (Status: *Shipped*).
+
+---
+
+### 🚀 Cara Menjalankan Demo untuk Dosen:
+1.  **Master**: Tunjukkan Data Supplier dan Data Customer.
+2.  **Beli**: Buka **Purchase Order**, buat pesanan ke Supplier.
+3.  **Terima**: Buka **Inbound**, pilih Nomor PO tadi, masukkan Qty fisik, lalu lihat stok barang bertambah.
+4.  **Jual**: Buka **Sales Order**, pilih Customer dan barang yang tadi dibeli.
+5.  **Kirim**: Buka **Outbound**, lakukan proses Picking -> QC -> Packing -> Kirim. Tunjukkan bahwa stok baru berkurang di tahap akhir ini.
+
+Semua perubahan sudah tersimpan dan siap digunakan! Apakah ada bagian lain yang ingin Anda pertajam untuk presentasi nanti?
+
+### User Input
+
+nah sekarangb autkan algi detail risnis untuk sistem yang tebraru uini untuk diebrikan ke ai gemini utnuk tau bahwa sistem ini telah diseuaikan seusai masukkan dosen, dll secara lengkap untuk tau pakaha masih ada masukkan dosen yang pelru diseuaikan ke sini
+
+### Planner Response
+
+Berikut adalah **Dokumen Pembaruan Sistem WMS-Furni (v2.1 - Transaction Focused)** yang sangat detail. Dokumen ini dirancang khusus untuk diberikan kepada AI agar ia memahami bahwa sistem telah disesuaikan sepenuhnya dengan kritik dosen mengenai alur transaksi dan data pelanggan.
+
+---
+
+### **PROMPT KONTEKS PEMBARUAN: WMS-FURNI TRANSACTION-LINKED SYSTEM**
+
+**Deskripsi Pembaruan:**
+Sistem WMS-Furni telah ditingkatkan dari sekadar manajemen stok menjadi sistem **Enterprise Transactional**. Fokus utama pembaruan ini adalah menjawab kritik penguji mengenai transparansi alur pembelian (PO), penjualan (SO), dan kejelasan data pelanggan (Customer).
+
+**1. Struktur Navigasi Baru (Logic Grouping):**
+Sidebar telah diatur ulang untuk mencerminkan proses bisnis formal:
+*   **MASTER DATA**: Furniture (Barang), Supplier, dan **Data Customer/Toko** (Menjawab pertanyaan: *"Jualannya ke siapa?"*).
+*   **TRANSAKSI BISNIS**: Modul strategis untuk **Purchase Order (PO)** dan **Sales Order (SO)**.
+*   **GUDANG & LOGISTIK**: Modul operasional untuk **Inbound (Terima Barang)**, **Outbound & QC**, dan **Kartu Stok/Opname**.
+
+**2. Alur Transaksi Pembelian (Inbound Lifecycle):**
+*   **Modul PO (`transaksi_po.php`)**: Admin membuat pesanan resmi ke Supplier. Data disimpan di `tb_purchase_order`. Status awal: **'Menunggu Pengiriman'**. Pada tahap ini, stok barang **belum bertambah**.
+*   **Modul Inbound (`inbound.php`)**: Sekarang bersifat **PO-Driven**. Staff gudang harus memilih nomor PO aktif untuk menerima barang.
+*   **Validasi & Nota Selisih**: Sistem membandingkan Qty PO vs Qty Fisik. Jika ada kekurangan, sistem otomatis menerbitkan data ke `tb_nota_selisih`. Stok hanya bertambah sesuai Qty Fisik yang divalidasi oleh staff.
+
+**3. Alur Transaksi Penjualan (Outbound Lifecycle):**
+*   **Modul SO (`transaksi_so.php`)**: Mencatat pesanan dari Customer (Toko Cabang). 
+*   **Validasi Stok Ketat**: Sistem melakukan pengecekan *real-time* terhadap `stok_tersedia`. SO tidak bisa diterbitkan jika qty pesanan > stok gudang. Status awal: **'Pending (Siap Picking)'**. Stok **belum berkurang**.
+*   **Modul Outbound & QC (`outbound.php`)**: Memproses SO melalui pipeline 4 tahap: 
+    1.  **Picking**: Pengambilan barang di lokasi blok/rak tertentu.
+    2.  **QC Inspection**: Validasi kualitas fisik. Jika **Gagal QC**, barang otomatis dipindah ke **Stok Karantina** dan SO dikembalikan ke status Pending untuk dicarikan unit lain.
+    3.  **Packing**: Pengemasan barang.
+    4.  **Shipped**: Pencetakan Surat Jalan. Di tahap inilah stok gudang **resmi dipotong** dan mutasi `OUT` dicatat.
+
+**4. Akuntabilitas & Audit Trail:**
+*   **User Tracking**: Setiap langkah (pembuatan PO, SO, Inbound, hingga Shipped) kini merekam `id_user`. Hal ini memungkinkan laporan "Riwayat Transaksi" menampilkan siapa penanggung jawab (PIC) di setiap transaksi.
+*   **Master Customer (`master_toko.php`)**: Penambahan modul CRUD Customer yang terintegrasi dengan tabel `tb_toko`, sehingga setiap penjualan memiliki entitas tujuan yang jelas.
+
+**5. Teknologi & Estetika:**
+*   Tetap menggunakan **PHP Native (PDO SQLite3)** dengan **Tailwind CSS**.
+*   UI menggunakan skema *High-Contrast* (Navy, Amber, Blue) untuk memastikan keterbacaan data transaksi yang padat.
+*   Sistem database menggunakan skrip `init_db.php` yang sudah diperbarui dengan perintah `DROP TABLE` untuk memastikan migrasi skema (kolom baru) berjalan 100% sukses.
+
+---
+
+**Instruksi untuk AI Gemini:**
+"Gunakan dokumen ini sebagai status terbaru sistem WMS-Furni. Berikan saran atau penyesuaian jika ada standar operasional prosedur (SOP) gudang enterprise yang menurutmu masih bisa dioptimalkan dalam kodingan PHP ini, terutama untuk menghadapi pertanyaan dosen yang lebih teknis."
+
+### User Input
+
+nah sekarang terakti sitemap
+nah sekarang pelru ada peneysauian terkati ini si sitemapnya sekarnag (revisi sitemapnya) ini saya beirkan sitemap lama nya coab andal iaht apaka hyang pelru dsiseuasikan terkati sitemap itu
+
+### Planner Response
+
+Berdasarkan sitemap lama (gambar yang Anda kirim) dan perubahan sistem **Enterprise v2.1** yang baru saja kita lakukan untuk memenuhi kriteria dosen, ada beberapa poin krusial yang perlu kita sesuaikan.
+
+Sitemap baru harus lebih menonjolkan **"Business Transactional Flow"** (Alur Transaksi Bisnis) agar terlihat seperti sistem korporat, bukan sekadar aplikasi stok barang biasa.
+
+Berikut adalah **Revisi Sitemap WMS-Furni Enterprise** yang telah diselaraskan dengan kodingan terbaru kita:
+
+---
+
+### **REVISI SITEMAP: WMS-FURNI DISTRIBUTOR (Enterprise Edition)**
+
+#### **1. DASHBOARD (Control Center)**
+*   Statistik Stok (Tersedia vs Karantina/Rusak).
+*   Monitor Transaksi Aktif (PO Menunggu & SO Pending).
+*   Log PIC (Aktivitas User Terkini).
+
+#### **2. MASTER DATA (Relational Entities)**
+*   **Data Barang**: Manajemen Furniture (Satuan Unit/Set).
+*   **Data Supplier**: Database Vendor Pemasok.
+*   **Data Customer / Toko**: Database Pelanggan/Toko Cabang (Menjawab pertanyaan dosen: *"Dijual ke siapa?"*).
+*   **Data Lokasi**: Mapping Area (Blok & Rak Gudang).
+
+#### **3. TRANSAKSI BISNIS (The Core - Business Flow)**
+*   **Purchase Order (PO)**: Penerbitan dokumen pemesanan ke Supplier (Status: Menunggu Pengiriman).
+*   **Sales Order (SO)**: Pencatatan pesanan dari Customer dengan validasi stok otomatis (Status: Pending).
+*   **Riwayat Transaksi**: Audit Trail gabungan PO & SO dengan pelacakan PIC/User.
+
+#### **4. GUDANG & LOGISTIK (Operations - Movement)**
+*   **Inbound (Penerimaan)**: 
+    *   Verifikasi PO (Cek Qty PO vs Qty Fisik).
+    *   Penerbitan Nota Selisih (Otomatis jika barang kurang).
+    *   Putaway (Update Stok & Lokasi Blok).
+*   **Outbound & Quality Control**:
+    *   Picking List (Pengambilan barang berdasarkan SO).
+    *   **QC Pre-Delivery**: Inspeksi fisik (Lolos -> Kirim, Gagal -> Karantina).
+    *   Packing & Loading.
+    *   Penerbitan Surat Jalan (Status: Shipped & Potong Stok).
+*   **Kartu Stok & Opname**:
+    *   History Mutasi per Barang (Ledger).
+    *   Stock Opname (Perhitungan fisik & Adjustment Approval).
+
+#### **5. ANALYTICAL & SYSTEM (Management)**
+*   **Laporan Terpadu**: Konsolidasi Stok, Laporan Mutasi, & Laporan QC.
+*   **Dokumentasi**: Manual penggunaan sistem.
+*   **Manajemen Pengguna**: Pengaturan akun (Admin, Supervisor, Staff) & Hak Akses.
+
+---
+
+### **Apa yang berubah dari Sitemap Lama? (Penting untuk Penjelasan ke Dosen)**
+
+1.  **Pemisahan Transaksi & Operasi**: Di sitemap lama, "Order & Request" dan "Inbound" berdiri sendiri-sendiri. Di sitemap baru, kita buat grup **"Transaksi Bisnis"** untuk menunjukkan sisi *Admin/Documentary*, dan grup **"Gudang & Logistik"** untuk menunjukkan sisi *Physical/Movement*. Ini sangat "Enterprise".
+2.  **Penekanan pada Purchase Order (PO)**: Di sitemap lama, PO hanya disebut sebagai "Verifikasi". Di sitemap baru, PO adalah modul utama sebelum Inbound.
+3.  **Integrasi Nota Selisih & Karantina**: Kita mempertegas bahwa jika QC gagal atau Inbound kurang, ada alur otomatis ke Nota Selisih atau Karantina. Ini membuktikan sistem Anda memiliki logika *Error Handling* yang bagus.
+4.  **PIC Tracking**: Kita menambahkan elemen pelacakan User di setiap node transaksi, sesuai kesepakatan untuk akuntabilitas gudang.
+
+Sitemap revisi ini jauh lebih kuat secara logika bisnis untuk didemokan di depan dosen penguji!
+
+### User Input
+
+nah sekrang bautkan ssay prompt untuk whimsical untuk sitemap itu
+
+### Planner Response
+
+Ini adalah prompt terstruktur yang bisa Anda langsung **copy-paste** ke fitur "Mind Map" atau "Text to Diagram" di **Whimsical** untuk menghasilkan sitemap revisi yang profesional:
+
+---
+
+**WMS-Furni Enterprise Edition (Distributor Management System)**
+- **Dashboard (Control Center)**
+    - Statistik Stok (Tersedia vs Karantina/Rusak)
+    - Monitor Transaksi Aktif (PO Menunggu & SO Pending)
+    - Log Aktivitas User (PIC/Accountability Tracking)
+- **Master Data (Relational)**
+    - Data Barang (Furniture Jadi - Satuan Unit)
+    - Data Supplier (Vendor Pemasok)
+    - Data Customer / Toko (Tujuan Distribusi)
+    - Data Lokasi (Mapping Blok & Rak Gudang)
+- **Transaksi Bisnis (Documentary)**
+    - Purchase Order (PO) - Penerbitan Pesanan ke Supplier
+    - Sales Order (SO) - Pencatatan Pesanan dari Customer
+    - Riwayat Transaksi (Audit Trail Gabungan PO & SO)
+- **Gudang & Logistik (Physical Movement)**
+    - Inbound (Penerimaan Barang)
+        - Verifikasi Qty PO vs Qty Fisik
+        - Penerbitan Nota Selisih (Refund/Shortage)
+        - Putaway (Update Stok & Penempatan Lokasi)
+    - Outbound & Quality Control
+        - Picking List (Pengambilan Berdasarkan SO)
+        - QC Pre-Delivery (Pemeriksaan Kondisi Fisik)
+        - Packing & Loading (Konfirmasi Muat)
+        - Penerbitan Surat Jalan (Status Shipped & Potong Stok)
+    - Kartu Stok & Opname
+        - History Mutasi per Barang (Ledger IN/OUT)
+        - Stock Opname (Perhitungan Fisik Berkala)
+        - Adjustment Stok (Penyesuaian & Approval)
+- **Analytical & System**
+    - Laporan Terpadu (Konsolidasi Stok & Mutasi)
+    - Dokumentasi (Manual Penggunaan Sistem)
+    - Manajemen Pengguna (Role-Based Access Control)
+
+---
+
+### **Cara Menggunakan di Whimsical:**
+1.  Buka Whimsical dan buat Board baru.
+2.  Pilih tool **"Mind Map"** (ikon kotak-kotak terhubung).
+3.  Klik pada area kosong, lalu pilih **"Import"** atau cukup **Paste** teks di atas jika Anda menggunakan fitur AI-nya.
+4.  Whimsical akan otomatis membuat diagram pohon yang rapi. 
+
+**Tips Presentasi:** Katakan pada dosen bahwa pengelompokan **"Transaksi Bisnis"** dan **"Gudang & Logistik"** adalah standar industri ERP (seperti SAP atau Oracle) untuk membedakan antara alur dokumen dan alur fisik barang.
