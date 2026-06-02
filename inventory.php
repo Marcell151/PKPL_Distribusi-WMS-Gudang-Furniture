@@ -47,26 +47,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $stmt->execute([$id_lokasi_baru, $id_f]);
             $success_mutasi = "Barang berhasil dipindah lokasi!";
         } catch (Exception $e) { $error_mutasi = $e->getMessage(); }
-    } elseif ($_POST['action'] === 'lapor_rusak') {
-        require_access(['Admin', 'Staff Gudang']);
-        $id_f = $_POST['id_furniture'];
-        $qty_rusak = (int)$_POST['qty_rusak'];
-        $keterangan = $_POST['keterangan_rusak'];
-        try {
-            $pdo->beginTransaction();
-            $stmt = $pdo->prepare("SELECT stok_tersedia FROM tb_furniture WHERE id_furniture = ?");
-            $stmt->execute([$id_f]);
-            $stok_sistem = $stmt->fetchColumn();
-            if ($stok_sistem < $qty_rusak) {
-                throw new Exception("Qty rusak melebihi stok tersedia!");
-            }
-            $stmt = $pdo->prepare("UPDATE tb_furniture SET stok_tersedia = stok_tersedia - ?, stok_karantina = stok_karantina + ? WHERE id_furniture = ?");
-            $stmt->execute([$qty_rusak, $qty_rusak, $id_f]);
-            $stmt = $pdo->prepare("INSERT INTO tb_mutasi_stok (id_furniture, tgl_mutasi, jenis_mutasi, qty, keterangan) VALUES (?, datetime('now', 'localtime'), 'MUTASI_RUSAK', ?, ?)");
-            $stmt->execute([$id_f, -$qty_rusak, "Pindah Karantina: " . $keterangan]);
-            $pdo->commit();
-            $success_rusak = "Barang berhasil dipindah ke Stok Karantina!";
-        } catch (Exception $e) { $pdo->rollBack(); $error_rusak = $e->getMessage(); }
     }
 }
 
@@ -132,10 +112,6 @@ include 'includes/sidebar.php';
             <?php endif; ?>
         </button>
         <?php endif; ?>
-        <?php if (check_access(['Admin', 'Supervisor', 'Staff Gudang'])): ?>
-        <button id="btn-mutasi" onclick="st('m')" class="px-6 py-3 rounded-xl font-black text-sm transition-all text-slate-600 hover:bg-white/50">Mutasi Internal</button>
-        <button id="btn-rusak" onclick="st('r')" class="px-6 py-3 rounded-xl font-black text-sm transition-all text-slate-600 hover:bg-white/50">Lapor Rusak</button>
-        <?php endif; ?>
     </div>
 
     <?php if(isset($success_opname)): ?>
@@ -149,12 +125,6 @@ include 'includes/sidebar.php';
     <?php endif; ?>
     <?php if(isset($error_mutasi)): ?>
         <div class="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-2xl mb-8 font-bold text-sm print:hidden"><?= $error_mutasi ?></div>
-    <?php endif; ?>
-    <?php if(isset($success_rusak)): ?>
-        <div class="bg-green-50 border border-green-200 text-green-700 px-6 py-4 rounded-2xl mb-8 font-bold text-sm print:hidden"><?= $success_rusak ?></div>
-    <?php endif; ?>
-    <?php if(isset($error_rusak)): ?>
-        <div class="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-2xl mb-8 font-bold text-sm print:hidden"><?= $error_rusak ?></div>
     <?php endif; ?>
 
     <div id="tk" class="space-y-6 print:space-y-0">
@@ -386,57 +356,20 @@ include 'includes/sidebar.php';
         </div>
     </div>
     <?php endif; ?>
-
-    <?php if (check_access(['Admin', 'Staff Gudang'])): ?>
-    <div id="tr" class="hidden animate-fade-in">
-        <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-12 max-w-2xl">
-            <h3 class="text-2xl font-black text-red-600 mb-8">Form Lapor Rusak (Pindah Karantina)</h3>
-            <form method="POST" action="inventory.php" class="space-y-8">
-                <input type="hidden" name="action" value="lapor_rusak">
-                <div>
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Produk Rusak</label>
-                    <select name="id_furniture" id="idfr" required onchange="ur()" class="w-full bg-slate-50 border-none rounded-2xl p-5 text-sm font-bold text-navy-900 focus:ring-2 focus:ring-red-500 outline-none appearance-none">
-                        <option value="" disabled selected>-- Pilih Furniture --</option>
-                        <?php foreach($furniture_list as $f): ?>
-                            <option value="<?= $f['id_furniture'] ?>" data-s="<?= $f['stok_tersedia'] ?>"><?= htmlspecialchars($f['kode_barang']) ?> - <?= htmlspecialchars($f['nama_barang']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="grid grid-cols-2 gap-8">
-                    <div>
-                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Stok Tersedia</label>
-                        <input type="text" id="ssr" disabled class="w-full bg-slate-100 border-none rounded-2xl p-5 text-xl font-black text-slate-400" value="-">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Qty Rusak</label>
-                        <input type="number" name="qty_rusak" min="1" required class="w-full bg-red-50 border-none rounded-2xl p-5 text-xl font-black text-red-600 focus:ring-2 focus:ring-red-500 outline-none">
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Keterangan / Alasan</label>
-                    <textarea name="keterangan_rusak" required rows="2" class="w-full bg-slate-50 border-none rounded-2xl p-5 text-sm font-medium text-navy-900 focus:ring-2 focus:ring-red-500 outline-none" placeholder="Deskripsi kerusakan..."></textarea>
-                </div>
-                <button type="submit" class="w-full py-5 rounded-2xl bg-red-500 text-white font-black text-sm shadow-2xl shadow-red-500/20 hover:bg-red-600 transition-all uppercase tracking-widest">Pindah ke Karantina</button>
-            </form>
-        </div>
-    </div>
-    <?php endif; ?>
 </div>
 
 <script>
     function st(t){
-        const tk=document.getElementById('tk'), to=document.getElementById('to'), tr=document.getElementById('tr'), ta=document.getElementById('ta'), tm=document.getElementById('tm');
-        const bk=document.getElementById('btn-kartu'), bo=document.getElementById('btn-opname'), br=document.getElementById('btn-rusak'), ba=document.getElementById('btn-approval'), bm=document.getElementById('btn-mutasi');
+        const tk=document.getElementById('tk'), to=document.getElementById('to'), ta=document.getElementById('ta'), tm=document.getElementById('tm');
+        const bk=document.getElementById('btn-kartu'), bo=document.getElementById('btn-opname'), ba=document.getElementById('btn-approval'), bm=document.getElementById('btn-mutasi');
         
-        [bk,bo,br,ba,bm].forEach(b => { if(b) b.className="px-6 py-3 rounded-xl font-black text-sm transition-all text-slate-600 hover:bg-white/50 relative"; });
-        [tk,to,tr,ta,tm].forEach(p => { if(p) p.classList.add('hidden'); });
+        [bk,bo,ba,bm].forEach(b => { if(b) b.className="px-6 py-3 rounded-xl font-black text-sm transition-all text-slate-600 hover:bg-white/50 relative"; });
+        [tk,to,ta,tm].forEach(p => { if(p) p.classList.add('hidden'); });
 
         if(t==='k'){ 
             if(tk) tk.classList.remove('hidden'); if(bk) bk.className="px-6 py-3 rounded-xl font-black text-sm transition-all bg-navy-900 text-white shadow-lg"; 
         } else if(t==='o'){ 
             if(to) to.classList.remove('hidden'); if(bo) bo.className="px-6 py-3 rounded-xl font-black text-sm transition-all bg-navy-900 text-white shadow-lg"; 
-        } else if(t==='r'){
-            if(tr) tr.classList.remove('hidden'); if(br) br.className="px-6 py-3 rounded-xl font-black text-sm transition-all bg-red-600 text-white shadow-lg shadow-red-600/30"; 
         } else if(t==='a'){
             if(ta) ta.classList.remove('hidden'); if(ba) ba.className="px-6 py-3 rounded-xl font-black text-sm transition-all bg-navy-900 text-white shadow-lg relative"; 
         } else if(t==='m'){
@@ -444,7 +377,6 @@ include 'includes/sidebar.php';
         }
     }
     function u(){ const s=document.getElementById('idfo'), d=document.getElementById('ssd'), o=s.options[s.selectedIndex]; d.value=o?o.getAttribute('data-s'):'-'; }
-    function ur(){ const s=document.getElementById('idfr'), d=document.getElementById('ssr'), o=s.options[s.selectedIndex]; d.value=o?o.getAttribute('data-s'):'-'; }
 </script>
 
 <style>

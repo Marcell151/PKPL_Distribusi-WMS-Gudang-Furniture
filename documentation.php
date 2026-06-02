@@ -28,6 +28,7 @@ include 'includes/sidebar.php';
                         <li>Melakukan Inbound (Penerimaan Barang).</li>
                         <li>Membuat Request Sales Order (SO) Cabang.</li>
                         <li>Melakukan QC Pre-Delivery & Pengiriman (Outbound).</li>
+                        <li>Melakukan Pelaporan Barang Rusak & Waste Insidentil.</li>
                         <li>Melihat Kartu Stok & History Mutasi.</li>
                     </ul>
                 </div>
@@ -35,6 +36,7 @@ include 'includes/sidebar.php';
                 <div class="p-4 bg-slate-50 rounded-xl border border-slate-100">
                     <p class="text-sm font-bold text-navy-900 mb-2">2. Supervisor (Monitoring Role)</p>
                     <ul class="text-sm text-slate-600 space-y-1 list-disc pl-5">
+                        <li>Meninjau dan Memberi Keputusan Approval Pelaporan Waste.</li>
                         <li>Melakukan Penyesuaian Stok (Stock Opname).</li>
                         <li>Melihat Laporan Konsolidasi & Pergerakan Barang.</li>
                         <li>Melakukan Audit Nota Selisih/Refund Supplier.</li>
@@ -85,6 +87,14 @@ include 'includes/sidebar.php';
                         <p class="text-sm text-slate-500">Setiap pergerakan barang (In, Out, Rusak, Opname) wajib terekam dalam Kartu Stok untuk menjamin audit trail yang lengkap.</p>
                     </div>
                 </div>
+
+                <div class="flex gap-4 p-4 hover:bg-slate-50 rounded-xl transition-colors">
+                    <div class="w-8 h-8 rounded-full bg-navy-900 text-white flex-shrink-0 flex items-center justify-center font-bold">4</div>
+                    <div>
+                        <p class="font-bold text-navy-900">Waste Management Insidentil</p>
+                        <p class="text-sm text-slate-500">Jika barang ditemukan rusak secara insidentil di gudang, Staff harus melaporkannya via form Waste. Stok aktif tidak berkurang sampai disetujui (Approved) oleh Supervisor/Admin. Jika disetujui, stok dipindah ke Karantina dan mutasi RUSAK dicatat.</p>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -111,20 +121,26 @@ include 'includes/sidebar.php';
                         <tr>
                             <td class="py-4 font-bold text-navy-900">tb_furniture</td>
                             <td class="py-4">id_furniture</td>
-                            <td class="py-4">kode_barang, area_blok, stok_tersedia</td>
+                            <td class="py-4">kode_barang, id_lokasi, stok_tersedia, stok_karantina</td>
                             <td class="py-4 text-slate-500">Master data barang jadi furniture.</td>
                         </tr>
                         <tr>
                             <td class="py-4 font-bold text-navy-900">tb_sales_order</td>
                             <td class="py-4">id_so</td>
-                            <td class="py-4">no_so, nama_toko, status</td>
+                            <td class="py-4">no_so, id_toko, status</td>
                             <td class="py-4 text-slate-500">Header transaksi permintaan toko.</td>
                         </tr>
                         <tr>
                             <td class="py-4 font-bold text-navy-900">tb_mutasi_stok</td>
                             <td class="py-4">id_mutasi</td>
-                            <td class="py-4">jenis_mutasi (IN/OUT/RUSAK), qty</td>
+                            <td class="py-4">jenis_mutasi, qty, keterangan, id_user</td>
                             <td class="py-4 text-slate-500">Log history pergerakan stok barang.</td>
+                        </tr>
+                        <tr>
+                            <td class="py-4 font-bold text-navy-900">tb_waste_insidentil</td>
+                            <td class="py-4">id_waste</td>
+                            <td class="py-4">id_furniture, qty_rusak, keterangan, tanggal_lapor, status, id_user_pelapor, id_user_approver</td>
+                            <td class="py-4 text-slate-500">Mencatat pelaporan kerusakan barang insidentil dan status approval-nya.</td>
                         </tr>
                     </tbody>
                 </table>

@@ -3,7 +3,7 @@ require 'config.php';
 
 try {
     // DROP OLD TABLES TO ENSURE SCHEMA UPDATES ARE APPLIED
-    $tables = ['tb_detail_po', 'tb_detail_so', 'tb_mutasi_stok', 'tb_nota_selisih', 'tb_opname', 'tb_purchase_order', 'tb_sales_order', 'tb_furniture', 'tb_lokasi', 'tb_toko', 'tb_supplier', 'tb_users'];
+    $tables = ['tb_waste_insidentil', 'tb_detail_po', 'tb_detail_so', 'tb_mutasi_stok', 'tb_nota_selisih', 'tb_opname', 'tb_purchase_order', 'tb_sales_order', 'tb_furniture', 'tb_lokasi', 'tb_toko', 'tb_supplier', 'tb_users'];
     foreach($tables as $t) { 
         $pdo->exec("DROP TABLE IF EXISTS $t"); 
     }
@@ -129,7 +129,23 @@ try {
         alasan TEXT,
         status TEXT DEFAULT 'Pending Approval',
         id_user_request INTEGER,
+        id_user_approve INTEGER,
         FOREIGN KEY (id_furniture) REFERENCES tb_furniture(id_furniture)
+    )");
+
+    // 11. tb_waste_insidentil
+    $pdo->exec("CREATE TABLE tb_waste_insidentil (
+        id_waste INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_furniture INTEGER,
+        qty_rusak INTEGER NOT NULL,
+        keterangan TEXT NOT NULL,
+        tanggal_lapor TEXT NOT NULL,
+        id_user_pelapor INTEGER,
+        status TEXT DEFAULT 'Menunggu Approval',
+        id_user_approver INTEGER,
+        FOREIGN KEY (id_furniture) REFERENCES tb_furniture(id_furniture),
+        FOREIGN KEY (id_user_pelapor) REFERENCES tb_users(id_user),
+        FOREIGN KEY (id_user_approver) REFERENCES tb_users(id_user)
     )");
 
     $pdo->exec("UPDATE sqlite_sequence SET seq = 0");
@@ -220,6 +236,12 @@ try {
     $pdo->exec("INSERT INTO tb_detail_po (id_po, id_furniture, qty_dipesan) VALUES 
         (1, 1, 52),
         (2, 2, 20), (2, 3, 10)
+    ");
+
+    // DUMMY WASTE INSIDENTIL
+    $pdo->exec("INSERT INTO tb_waste_insidentil (id_furniture, qty_rusak, keterangan, tanggal_lapor, id_user_pelapor, status) VALUES 
+        (1, 2, 'Ditemukan di Blok C, kaki kursi sofa sobek kesenggol forklift', datetime('now', '-2 days'), 3, 'Menunggu Approval'),
+        (3, 1, 'Ketemu di Blok B, kaki meja retak secara insidentil', datetime('now', '-1 days'), 3, 'Menunggu Approval')
     ");
 
     echo "<div style='font-family: sans-serif; padding: 40px; text-align: center; background: #f8fafc; min-height: 100vh;'>

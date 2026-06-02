@@ -119,6 +119,29 @@
                         <span class="text-sm font-semibold">Outbound & QC</span>
                     </a>
                 </li>
+                <li>
+                    <a href="lapor_waste.php" class="flex items-center px-4 py-3 rounded-xl transition-all duration-200 group <?= basename($_SERVER['PHP_SELF']) == 'lapor_waste.php' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:bg-white/5 hover:text-white' ?>">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        <span class="text-sm font-semibold">Lapor Kerusakan & Waste</span>
+                    </a>
+                </li>
+                <?php endif; ?>
+                <?php if (check_access(['Admin', 'Supervisor'])): ?>
+                <li>
+                    <a href="approval_waste.php" class="flex items-center px-4 py-3 rounded-xl transition-all duration-200 group <?= basename($_SERVER['PHP_SELF']) == 'approval_waste.php' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:bg-white/5 hover:text-white' ?> relative">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span class="text-sm font-semibold">Approval Waste</span>
+                        <?php 
+                            try {
+                                $stmt_w = $pdo->query("SELECT COUNT(*) as cnt FROM tb_waste_insidentil WHERE status = 'Menunggu Approval'");
+                                $pending_w = $stmt_w->fetch()['cnt'] ?? 0;
+                            } catch(Exception $e) { $pending_w = 0; }
+                            if($pending_w > 0): 
+                        ?>
+                            <span class="absolute right-4 bg-red-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-bold animate-pulse"><?= $pending_w ?></span>
+                        <?php endif; ?>
+                    </a>
+                </li>
                 <?php endif; ?>
                 <li>
                     <a href="inventory.php" class="flex items-center px-4 py-3 rounded-xl transition-all duration-200 group <?= basename($_SERVER['PHP_SELF']) == 'inventory.php' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:bg-white/5 hover:text-white' ?>">
