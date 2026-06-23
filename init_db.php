@@ -3,7 +3,7 @@ require 'config.php';
 
 try {
     // DROP OLD TABLES TO ENSURE SCHEMA UPDATES ARE APPLIED
-    $tables = ['tb_waste_insidentil', 'tb_detail_po', 'tb_detail_so', 'tb_mutasi_stok', 'tb_nota_selisih', 'tb_opname', 'tb_purchase_order', 'tb_sales_order', 'tb_furniture', 'tb_lokasi', 'tb_toko', 'tb_supplier', 'tb_users'];
+    $tables = ['tb_waste_insidentil', 'tb_detail_po', 'tb_detail_so', 'tb_mutasi_stok', 'tb_nota_selisih', 'tb_opname', 'tb_purchase_order', 'tb_sales_order', 'tb_furniture', 'tb_lokasi', 'tb_gudang', 'tb_toko', 'tb_supplier', 'tb_users'];
     foreach($tables as $t) { 
         $pdo->exec("DROP TABLE IF EXISTS $t"); 
     }
@@ -31,6 +31,14 @@ try {
         nama_toko TEXT NOT NULL,
         kontak TEXT,
         alamat TEXT
+    )");
+
+    // 3b. tb_gudang
+    $pdo->exec("CREATE TABLE tb_gudang (
+        id_gudang INTEGER PRIMARY KEY AUTOINCREMENT,
+        nama_gudang TEXT NOT NULL,
+        alamat TEXT,
+        jenis TEXT NOT NULL
     )");
 
     // 4. tb_lokasi
@@ -105,8 +113,12 @@ try {
         qty INTEGER NOT NULL,
         keterangan TEXT,
         id_user INTEGER,
+        id_gudang_asal INTEGER,
+        id_gudang_tujuan INTEGER,
         FOREIGN KEY (id_furniture) REFERENCES tb_furniture(id_furniture),
-        FOREIGN KEY (id_user) REFERENCES tb_users(id_user)
+        FOREIGN KEY (id_user) REFERENCES tb_users(id_user),
+        FOREIGN KEY (id_gudang_asal) REFERENCES tb_gudang(id_gudang),
+        FOREIGN KEY (id_gudang_tujuan) REFERENCES tb_gudang(id_gudang)
     )");
 
     // 9. tb_nota_selisih
@@ -156,6 +168,14 @@ try {
         (2, 'Siti Aminah', 'Supervisor'),
         (3, 'Budi Santoso', 'Staff Gudang')
     ");
+
+    // DUMMY DATA GUDANG
+    $gudang_data = [
+        ['Gudang Pusat (Main)', 'Jl. Industri Utama No. 1, Jakarta', 'Pusat'],
+        ['Gudang Cabang (Hub)', 'Jl. Logistik Raya No. 9, Bekasi', 'Cabang']
+    ];
+    $stmt_gudang = $pdo->prepare("INSERT INTO tb_gudang (nama_gudang, alamat, jenis) VALUES (?, ?, ?)");
+    foreach ($gudang_data as $row) { $stmt_gudang->execute($row); }
 
     // DUMMY DATA LOKASI
     $lokasi_data = [
@@ -218,11 +238,13 @@ try {
 
     // MUTATION HISTORY
     $mutasi_data = [
-        [1, date('Y-m-d H:i:s', strtotime('-15 days')), 'IN', 52, 'Penerimaan PO-001 SUP-002', 3],
-        [1, date('Y-m-d H:i:s', strtotime('-10 days')), 'MUTASI_RUSAK', -2, 'Cacat permukaan kain', 3],
-        [1, date('Y-m-d H:i:s', strtotime('-5 days')), 'OUT', -5, 'Kirim SO-001', 3]
+        [1, date('Y-m-d H:i:s', strtotime('-15 days')), 'IN', 52, 'Penerimaan PO-001 SUP-002', 3, null, null],
+        [1, date('Y-m-d H:i:s', strtotime('-10 days')), 'MUTASI_RUSAK', -2, 'Cacat permukaan kain', 3, null, null],
+        [1, date('Y-m-d H:i:s', strtotime('-5 days')), 'OUT', -5, 'Kirim SO-001', 3, null, null],
+        [1, date('Y-m-d H:i:s', strtotime('-2 days')), 'TRANSFER_OUT', -2, 'Transfer ke Cabang Hub', 3, 1, null],
+        [1, date('Y-m-d H:i:s', strtotime('-2 days')), 'TRANSFER_IN', 2, 'Terima transfer dari Pusat', 3, null, 2]
     ];
-    $stmt_mut = $pdo->prepare("INSERT INTO tb_mutasi_stok (id_furniture, tgl_mutasi, jenis_mutasi, qty, keterangan, id_user) VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt_mut = $pdo->prepare("INSERT INTO tb_mutasi_stok (id_furniture, tgl_mutasi, jenis_mutasi, qty, keterangan, id_user, id_gudang_asal, id_gudang_tujuan) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
     foreach ($mutasi_data as $row) { $stmt_mut->execute($row); }
 
     // DUMMY PURCHASE ORDER
