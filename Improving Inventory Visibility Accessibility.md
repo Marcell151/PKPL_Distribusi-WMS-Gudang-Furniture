@@ -309,3 +309,90 @@ Skrip Python yang digunakan untuk men-generate file tersebut juga saya simpan di
 2. **Bagian 2 (Estimasi & The Business Side):** Sheet 6 mengambil total UFP dan VAF untuk mengkalkulasi total Jam dan Hari Kerja. Sheet 7 merincikan perhitungan *Harga Pokok Proyek (HPP)* berdasarkan SDM (System Analyst, Programmer, UI/UX) dan biaya Operasional (Server, Internet, Listrik). Terakhir, Sheet 8 menghitung Batas Penawaran Bawah (Margin 20%) dan Batas Atas (Margin 45%).
 
 Silakan gunakan file ini untuk melengkapi keperluan ujian FPA atau mempresentasikannya kepada dosen penguji Anda!
+
+### User Input
+
+Kamu adalah Expert System Analyst. Tugas kamu adalah membuatkan kode PlantUML untuk "Use Case Diagram" dari sistem WMS-Furni Enterprise Edition yang sedang aktif di workspace ini.
+
+Tolong baca sekilas file PHP dan struktur navigasi/menu di dalam proyek untuk memastikan kesesuaian fitur, namun gunakan struktur hierarki aktor dan hak akses berikut sebagai acuan utama (termasuk penyesuaian terbaru terkait multi-gudang dan waste):
+
+AKTOR & WEWENANGNYA:
+1. Admin: 
+   - Mengelola Master Data & User (termasuk master data Gudang).
+2. Supervisor:
+   - Kelola Request & Sales Order.
+   - Lihat Laporan (Stok, Mutasi, Laporan Waste).
+   - Approval Mutasi & Opname.
+   - Menyetujui (Approval) Waste Insidentil.
+3. Staff Gudang:
+   - Proses Penerimaan Barang (Inbound).
+   - Proses Pengiriman (Picking & Muat).
+   - Quality Control (QC) Fisik (Include ke Proses Pengiriman).
+   - Lakukan Stock Opname.
+   - Input Mutasi Internal.
+   - Melakukan Transfer Antar Gudang.
+   - Melaporkan Barang Rusak (Waste).
+
+INSTRUKSI PEMBUATAN PLANTUML:
+- Gunakan format standar `@startuml` dan `@enduml`.
+- Gunakan `left to right direction` agar diagram melebar ke samping dan mudah dibaca.
+- Bungkus semua use case di dalam `rectangle "WMS Distributor Furniture" { ... }`.
+- Gunakan keyword `actor` untuk Admin, Supervisor, dan Staff Gudang.
+- Hubungkan aktor dengan use case menggunakan panah `-->`.
+- Berikan relasi `..> : <<include>>` dari "Proses Pengiriman" ke "Quality Control (QC) Fisik".
+- Berikan gaya yang bersih dan profesional.
+
+Tampilkan kode PlantUML mentahnya saja agar saya bisa langsung menyalinnya ke renderer.
+
+### Planner Response
+
+```plantuml
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+
+actor "Admin" as admin
+actor "Supervisor" as spv
+actor "Staff Gudang" as staff
+
+rectangle "WMS Distributor Furniture" {
+    ' Use Cases untuk Admin
+    usecase "Mengelola Master Data & User\n(Termasuk Master Gudang)" as UC_Admin1
+
+    ' Use Cases untuk Supervisor
+    usecase "Kelola Request & Sales Order" as UC_Spv1
+    usecase "Lihat Laporan\n(Stok, Mutasi, Waste)" as UC_Spv2
+    usecase "Approval Mutasi & Opname" as UC_Spv3
+    usecase "Menyetujui (Approval)\nWaste Insidentil" as UC_Spv4
+
+    ' Use Cases untuk Staff Gudang
+    usecase "Proses Penerimaan Barang\n(Inbound)" as UC_Staff1
+    usecase "Proses Pengiriman\n(Picking & Muat)" as UC_Staff2
+    usecase "Quality Control (QC) Fisik" as UC_Staff3
+    usecase "Lakukan Stock Opname" as UC_Staff4
+    usecase "Input Mutasi Internal" as UC_Staff5
+    usecase "Melakukan Transfer\nAntar Gudang" as UC_Staff6
+    usecase "Melaporkan Barang\nRusak (Waste)" as UC_Staff7
+
+    ' Relasi Aktor - Admin
+    admin --> UC_Admin1
+
+    ' Relasi Aktor - Supervisor
+    spv --> UC_Spv1
+    spv --> UC_Spv2
+    spv --> UC_Spv3
+    spv --> UC_Spv4
+
+    ' Relasi Aktor - Staff Gudang
+    staff --> UC_Staff1
+    staff --> UC_Staff2
+    staff --> UC_Staff4
+    staff --> UC_Staff5
+    staff --> UC_Staff6
+    staff --> UC_Staff7
+    
+    ' Relasi Include
+    UC_Staff2 ..> UC_Staff3 : <<include>>
+}
+@enduml
+```
